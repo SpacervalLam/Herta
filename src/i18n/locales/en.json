@@ -62,11 +62,13 @@
     "collapse": "Collapse",
     "reasoned": "Reasoned",
     "reasoningProcess": "Reasoning Process",
-    "imageTooLarge": "Image size exceeds 15MB, please select again",
-    "uploadImage": "Upload Image",
-    "invalidImageFormat": "Invalid image format, please select again",
-    "emptyInput": "Please enter content or upload an image",
-    "dropToUpload": "Drag and drop image here to upload"
+    "fileTooLarge": "File {{name}} is too large, please select a file within 15MB",
+    "unsupportedFileType": "Unsupported file type: {{type}}",
+    "inputPlaceholderMultimodal": "Type your question or drag and drop files here...",
+    "supportsMultimodalHint": "You can add images, audio, or video, drag and drop to upload",
+    "image": "Image",
+    "audio": "Audio",
+    "video": "Video"
   },
   "sidebar": {
     "collapse": "Collapse",

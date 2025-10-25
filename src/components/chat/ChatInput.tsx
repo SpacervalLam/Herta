@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { settingsStorage } from '@/utils/settingsStorage';
 import { MediaAttachment } from '@/types/chat';
 import { getActiveModel } from '@/utils/modelStorage';
+import { useTranslation } from 'react-i18next';
 
 interface ChatInputProps {
   onSend: (message: string, attachments?: MediaAttachment[]) => void;
@@ -17,6 +18,7 @@ interface ChatInputProps {
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
+  const { t } = useTranslation();
   const [input, setInput] = useState('');
   const [sendKey, setSendKey] = useState<'enter' | 'ctrl-enter'>('ctrl-enter');
   const [attachments, setAttachments] = useState<MediaAttachment[]>([]);
@@ -32,26 +34,24 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
 
   // 拖拽状态
   const [isDragging, setIsDragging] = useState(false);
-  const dragCounter = useRef(0); // 处理 nested drag events
+  const dragCounter = useRef(0);
 
   useEffect(() => {
     const checkModelSupport = () => {
       const activeModel = getActiveModel();
       setSupportsMultimodal(!!activeModel?.supportsMultimodal);
     };
-  
+
     checkModelSupport();
-  
-    // 同标签页 & 跨标签页监听
     window.addEventListener('settings-changed', checkModelSupport);
     window.addEventListener('storage', checkModelSupport);
-  
+
     return () => {
       window.removeEventListener('settings-changed', checkModelSupport);
       window.removeEventListener('storage', checkModelSupport);
     };
   }, []);
-  
+
 
   useEffect(() => {
     // 加载用户设置
@@ -125,7 +125,7 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
   const addAttachmentsFromFiles = (files: FileList | File[]) => {
     Array.from(files).forEach((file) => {
       if (file.size > MAX_FILE_SIZE) {
-        alert(`文件 ${file.name} 过大，请选择 10MB 以下的文件`);
+        alert(t('chat.fileTooLarge', { name: file.name }));
         return;
       }
 
@@ -133,22 +133,24 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
         const reader = new FileReader();
         reader.onload = (event) => {
           const base = event.target?.result as string;
-          const type = file.type.startsWith('image/') ? 'image'
-                      : file.type.startsWith('audio/') ? 'audio'
-                      : 'video';
-          setAttachments(prev => [
+          const type = file.type.startsWith('image/')
+            ? 'image'
+            : file.type.startsWith('audio/')
+              ? 'audio'
+              : 'video';
+          setAttachments((prev) => [
             ...prev,
             {
               type,
               url: base,
               fileName: file.name,
               fileSize: file.size,
-            } as MediaAttachment
+            } as MediaAttachment,
           ]);
         };
         reader.readAsDataURL(file);
       } else {
-        alert(`不支持的文件类型: ${file.type}`);
+        alert(t('chat.unsupportedFileType', { type: file.type }));
       }
     });
   };
@@ -157,13 +159,12 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
     const files = e.target.files;
     if (!files) return;
     addAttachmentsFromFiles(files);
-    // 允许重复选择同一文件
     e.target.value = '';
     setMenuOpen(false);
   };
 
   const removeAttachment = (index: number) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index));
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   const triggerFileUpload = (accept: string) => {
@@ -185,7 +186,6 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    // 阻止默认以允许 drop
   };
 
   const onDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
@@ -212,7 +212,7 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
   return (
     <div className="p-4">
       <div className="max-w-4xl mx-auto">
-        {/* 已上传附件预览 */}
+        {/* 附件预览 */}
         {attachments.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2">
             {attachments.map((att, index) => (
@@ -221,7 +221,7 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
                   <div className="relative">
                     <img
                       src={att.url}
-                      alt={att.fileName || '图片预览'}
+                      alt={att.fileName || t('chat.image')}
                       className="w-16 h-16 object-cover rounded-lg border border-border"
                     />
                     <Button
@@ -230,7 +230,7 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
                       variant="destructive"
                       className="absolute -top-2 -right-2 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={() => removeAttachment(index)}
-                      aria-label="删除附件"
+                      aria-label={t('common.delete')}
                     >
                       <X className="h-3 w-3" />
                     </Button>
@@ -246,7 +246,7 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
                       variant="ghost"
                       className="h-5 w-5 p-0"
                       onClick={() => removeAttachment(index)}
-                      aria-label="删除附件"
+                      aria-label={t('common.delete')}
                     >
                       <X className="h-3 w-3" />
                     </Button>
@@ -265,7 +265,7 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
                       variant="destructive"
                       className="absolute -top-2 -right-2 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={() => removeAttachment(index)}
-                      aria-label="删除附件"
+                      aria-label={t('common.delete')}
                     >
                       <X className="h-3 w-3" />
                     </Button>
@@ -285,7 +285,7 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
           multiple
         />
 
-        {/* 输入区（支持拖拽） */}
+        {/* 输入区 */}
         <div
           className={cn(
             'relative flex items-center gap-2 bg-muted/30 rounded-[28px] border border-border px-4 py-2 transition-colors',
@@ -295,9 +295,9 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
           onDrop={onDrop}
-          aria-label="聊天输入区，可拖拽文件上传"
+          aria-label={t('chat.dropToUpload')}
         >
-          {/* + 按钮 和 上传菜单 */}
+          {/* + 按钮 */}
           {supportsMultimodal && !isLoading && (
             <div ref={menuRef} className="relative">
               <Button
@@ -306,44 +306,41 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
                 variant="ghost"
                 className="shrink-0 h-8 w-8 rounded-full"
                 disabled={disabled || isLoading}
-                onClick={() => setMenuOpen(open => !open)}
+                onClick={() => setMenuOpen((open) => !open)}
                 aria-expanded={menuOpen}
                 aria-haspopup="menu"
-                title="添加"
+                title={t('common.add')}
               >
                 <Plus className="h-5 w-5" />
               </Button>
 
-              {/* 菜单（点击打开） */}
+              {/* 菜单 */}
               {menuOpen && (
                 <div className="absolute bottom-full left-0 mb-2 w-44 bg-background border rounded-md shadow-lg z-10">
                   <div className="p-1">
                     <Button
-                      type="button"
                       variant="ghost"
                       className="w-full justify-start text-sm h-9"
                       onClick={() => triggerFileUpload('image/*')}
                     >
                       <ImageIcon className="h-4 w-4 mr-2" />
-                      图片
+                      {t('chat.image')}
                     </Button>
                     <Button
-                      type="button"
                       variant="ghost"
                       className="w-full justify-start text-sm h-9"
                       onClick={() => triggerFileUpload('audio/*')}
                     >
                       <MicIcon className="h-4 w-4 mr-2" />
-                      音频
+                      {t('chat.audio')}
                     </Button>
                     <Button
-                      type="button"
                       variant="ghost"
                       className="w-full justify-start text-sm h-9"
                       onClick={() => triggerFileUpload('video/*')}
                     >
                       <FileTextIcon className="h-4 w-4 mr-2" />
-                      视频
+                      {t('chat.video')}
                     </Button>
                   </div>
                 </div>
@@ -351,13 +348,17 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
             </div>
           )}
 
-          {/* 文本输入 */}
+          {/* 输入框 */}
           <Textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={supportsMultimodal ? '输入问题或将图片拖放到此处...' : '输入问题...'}
+            placeholder={
+              supportsMultimodal
+                ? t('chat.inputPlaceholderMultimodal')
+                : t('chat.inputPlaceholder')
+            }
             disabled={disabled || isLoading}
             className={cn(
               'flex-1 min-h-[40px] max-h-[200px] resize-none border-0 bg-transparent',
@@ -367,7 +368,7 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
             rows={1}
           />
 
-          {/* 发送 / 停止 按钮 */}
+          {/* 发送/停止 */}
           {isLoading ? (
             <Button
               type="button"
@@ -390,11 +391,11 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
             </Button>
           )}
 
-          {/* 拖拽覆盖提示 */}
+          {/* 拖拽提示 */}
           {isDragging && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="px-4 py-2 rounded-md border-2 border-dashed border-primary bg-white/60 text-sm">
-                将文件拖到此处以添加附件
+                {t('chat.dropToUpload')}
               </div>
             </div>
           )}
@@ -403,9 +404,9 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
         {/* 提示文字 */}
         <div className="mt-2 text-xs text-muted-foreground text-center">
           {sendKey === 'ctrl-enter'
-            ? '按 Ctrl+Enter 发送消息'
-            : '按 Enter 发送消息，Shift+Enter 换行'}
-          {supportsMultimodal && ' | 可添加图片、音频或视频（也支持拖拽上传）'}
+            ? t('chat.sendWithCtrlEnter')
+            : t('chat.sendWithEnter')}
+          {supportsMultimodal && ` | ${t('chat.supportsMultimodalHint')}`}
         </div>
       </div>
     </div>
