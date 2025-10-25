@@ -179,20 +179,58 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
         {attachments.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2">
             {attachments.map((att, index) => (
-              <div key={index} className="flex items-center gap-1 bg-muted/50 rounded-full px-3 py-1 text-sm">
-                {att.type === 'image' && <ImageIcon className="h-4 w-4" />}
-                {att.type === 'audio' && <MicIcon className="h-4 w-4" />}
-                {att.type === 'video' && <FileTextIcon className="h-4 w-4" />}
-                <span className="truncate max-w-[150px]">{att.fileName}</span>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="h-5 w-5 p-0 ml-1"
-                  onClick={() => removeAttachment(index)}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
+              <div key={index} className="relative group">
+                {att.type === 'image' && (
+                  <div className="relative">
+                    <img 
+                      src={att.url} 
+                      alt="图片预览" 
+                      className="w-16 h-16 object-cover rounded-lg border border-border"
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="destructive"
+                      className="absolute -top-2 -right-2 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => removeAttachment(index)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+                {att.type === 'audio' && (
+                  <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
+                    <MicIcon className="h-4 w-4" />
+                    <audio src={att.url} controls className="max-w-[120px]" />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-5 w-5 p-0"
+                      onClick={() => removeAttachment(index)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+                {att.type === 'video' && (
+                  <div className="relative">
+                    <video 
+                      src={att.url} 
+                      className="w-16 h-16 object-cover rounded-lg border border-border"
+                      muted
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="destructive"
+                      className="absolute -top-2 -right-2 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => removeAttachment(index)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

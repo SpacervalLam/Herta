@@ -269,15 +269,10 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
                         <ImageIcon className="h-4 w-4 text-muted-foreground" />
                         <img 
                           src={attachment.url} 
-                          alt={attachment.fileName || '图片'} 
+                          alt="图片" 
                           className="max-w-[200px] max-h-[150px] object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
                           onClick={() => handleImageClick(attachment.url)}
                         />
-                        {attachment.fileName && (
-                          <span className="text-xs text-muted-foreground truncate max-w-[100px]">
-                            {attachment.fileName}
-                          </span>
-                        )}
                       </div>
                     )}
                     {attachment.type === 'audio' && (
@@ -288,11 +283,6 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
                           controls 
                           className="max-w-[200px]"
                         />
-                        {attachment.fileName && (
-                          <span className="text-xs text-muted-foreground truncate max-w-[100px]">
-                            {attachment.fileName}
-                          </span>
-                        )}
                       </div>
                     )}
                     {attachment.type === 'video' && (
@@ -303,11 +293,6 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
                           controls 
                           className="max-w-[200px] max-h-[150px] object-cover rounded"
                         />
-                        {attachment.fileName && (
-                          <span className="text-xs text-muted-foreground truncate max-w-[100px]">
-                            {attachment.fileName}
-                          </span>
-                        )}
                       </div>
                     )}
                   </div>
