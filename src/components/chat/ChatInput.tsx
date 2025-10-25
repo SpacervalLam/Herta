@@ -209,6 +209,33 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
     }
   };
 
+  // --- 剪贴板粘贴图片支持 ---
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!supportsMultimodal) return; // 当前模型不支持多模态则忽略
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const imageFiles: File[] = [];
+
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) imageFiles.push(file);
+        }
+      }
+
+      if (imageFiles.length > 0) {
+        e.preventDefault();
+        addAttachmentsFromFiles(imageFiles);
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [supportsMultimodal]);
+
+
   return (
     <div className="p-4">
       <div className="max-w-4xl mx-auto">
