@@ -13,10 +13,12 @@ import { Check, Copy } from 'lucide-react';
  * - 支持 GFM（表格、列表、任务列表）
  * - 支持 KaTeX 数学公式
  * - 支持代码块复制
+ * - 支持图片渲染和点击查看大图
  */
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+  onImageClick?: (src: string) => void;
 }
 
 /* ---------------------------------- 代码块组件 ---------------------------------- */
@@ -70,7 +72,7 @@ const CodeBlock = ({ className, children }: { className?: string; children: Reac
 };
 
 /* ---------------------------------- Markdown 主体 ---------------------------------- */
-const MarkdownRenderer = memo(({ content, className }: MarkdownRendererProps) => {
+const MarkdownRenderer = memo(({ content, className, onImageClick }: MarkdownRendererProps) => {
   const processedContent = useMemo(() => {
     // 转换 LaTeX 块级与行内语法
     let processed = content;
@@ -86,7 +88,8 @@ const MarkdownRenderer = memo(({ content, className }: MarkdownRendererProps) =>
         'prose prose-neutral dark:prose-invert max-w-none text-[15px] leading-relaxed',
         'prose-pre:p-0 prose-code:before:content-none prose-code:after:content-none',
         'prose-blockquote:border-l-4 prose-blockquote:border-primary/50 prose-blockquote:pl-4',
-        'prose-img:rounded-xl prose-table:border prose-table:border-border prose-table:rounded-lg',
+        'prose-img:rounded-xl prose-img:cursor-pointer prose-img:max-w-full prose-img:h-auto',
+        'prose-table:border prose-table:border-border prose-table:rounded-lg',
         'prose-th:border prose-th:border-border prose-td:border prose-td:border-border',
         className
       )}
@@ -106,6 +109,17 @@ const MarkdownRenderer = memo(({ content, className }: MarkdownRendererProps) =>
               </code>
             ) : (
               <CodeBlock className={className}>{children}</CodeBlock>
+            );
+          },
+          img({ src, alt, ...props }) {
+            return (
+              <img
+                src={src}
+                alt={alt || "图片"}
+                {...props}
+                onClick={() => src && onImageClick && onImageClick(src)}
+                className="rounded-xl cursor-pointer max-w-full h-auto my-4 transition-transform hover:scale-[1.02]"
+              />
             );
           },
           p({ children }) {

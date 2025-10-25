@@ -61,7 +61,12 @@
     "saveAndRegenerate": "保存并重新生成",
     "collapse": "收起",
     "reasoned": "已思考",
-    "reasoningProcess": "思考过程"
+    "reasoningProcess": "思考过程",
+    "imageTooLarge": "图片大小超过15MB，请重新选择",
+    "uploadImage": "上传图片",
+    "invalidImageFormat": "无效的图片格式，请重新选择",
+    "emptyInput": "请输入内容或上传图片",
+    "dropToUpload": "将图片拖放到此处上传"
   },
   "sidebar": {
     "collapse": "收起",

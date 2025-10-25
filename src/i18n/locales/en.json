@@ -61,7 +61,12 @@
     "saveAndRegenerate": "Save & Regenerate",
     "collapse": "Collapse",
     "reasoned": "Reasoned",
-    "reasoningProcess": "Reasoning Process"
+    "reasoningProcess": "Reasoning Process",
+    "imageTooLarge": "Image size exceeds 15MB, please select again",
+    "uploadImage": "Upload Image",
+    "invalidImageFormat": "Invalid image format, please select again",
+    "emptyInput": "Please enter content or upload an image",
+    "dropToUpload": "Drag and drop image here to upload"
   },
   "sidebar": {
     "collapse": "Collapse",

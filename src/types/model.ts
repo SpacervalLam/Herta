@@ -57,14 +57,6 @@ export const MODEL_PRESETS: ModelPreset[] = [
     apiUrlPlaceholder: '/api/gemini/v1/models/gemini-pro:generateContent',
     description: 'Google Gemini Pro 模型'
   },
-  // {
-  //   id: 'baidu-wenxin',
-  //   name: '百度文心',
-  //   modelType: 'baidu',
-  //   apiUrlPlaceholder: 'https://qianfan.baidubce.com/v2',
-  //   modelName: 'ernie-bot',
-  //   description: '百度文心大模型 API'
-  // },
   {
     id: 'baidu-wenxin',
     name: '百度文心（千帆）',

@@ -11,6 +11,8 @@ export const useChat = () => {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  // 新增：用于跟踪是否有未保存的更改
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -30,8 +32,23 @@ export const useChat = () => {
   useEffect(() => {
     if (conversations.length > 0) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+      setHasUnsavedChanges(false);
     }
   }, [conversations]);
+
+  // 新增：监听窗口关闭事件，提示未保存的更改
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '你有未保存的对话更改，确定要离开吗？';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   const currentConversation = conversations.find(c => c.id === currentConversationId);
 
@@ -44,9 +61,9 @@ export const useChat = () => {
       updatedAt: Date.now(),
       isSaved: false // 标记为未保存，只有发送第一条消息后才保存到列表
     };
-    // 不立即添加到conversations列表，只设置为当前对话
     setConversations(prev => [newConversation, ...prev]);
     setCurrentConversationId(newConversation.id);
+    setHasUnsavedChanges(true);
     return newConversation;
   }, []);
 
@@ -60,19 +77,34 @@ export const useChat = () => {
       }
       return filtered;
     });
+    setHasUnsavedChanges(true);
   }, [currentConversationId]);
 
   const updateConversationTitle = useCallback((id: string, title: string) => {
     setConversations(prev =>
       prev.map(c => c.id === id ? { ...c, title, updatedAt: Date.now() } : c)
     );
+    setHasUnsavedChanges(true);
   }, []);
 
   const clearConversation = useCallback((id: string) => {
     setConversations(prev =>
       prev.map(c => c.id === id ? { ...c, messages: [], updatedAt: Date.now() } : c)
     );
+    setHasUnsavedChanges(true);
   }, []);
+
+  // 新增：清空所有对话
+  const clearAllConversations = useCallback(() => {
+    if (conversations.length === 0) return;
+
+    if (window.confirm('确定要删除所有对话吗？此操作不可恢复。')) {
+      setConversations([]);
+      setCurrentConversationId(null);
+      setHasUnsavedChanges(true);
+      toast.success('所有对话已清空');
+    }
+  }, [conversations.length]);
 
   // AI自动生成对话标题
   const generateConversationTitle = useCallback(async (conversationId: string, firstMessage: string) => {
@@ -104,18 +136,18 @@ export const useChat = () => {
 
           let finalTitle = generatedTitle.trim();
 
-          // 🔹 1. 移除 <think>...</think> 思维链段落
-          finalTitle = finalTitle.replace(/<think>[\s\S]*?<\/think>/gi, '');
+          // 移除 ... 思维链段落
+          finalTitle = finalTitle.replace(/[\s\S]*?<\/think>/gi, '');
 
-          // 🔹 2. 仅取首行并清理多余空格与引号
+          // 仅取首行并清理多余空格与引号
           finalTitle = finalTitle.split('\n')[0].replace(/^["'\s]+|["'\s]+$/g, '').trim();
 
-          // 🔹 3. 若为空则使用用户消息回退
+          // 若为空则使用用户消息回退
           if (!finalTitle) {
             finalTitle = firstMessage.trim().slice(0, 12) || 'New Conversation';
           }
 
-          // 🔹 4. 长度约束：最多40字符（宽字符按2算）
+          // 长度约束：最多40字符（宽字符按2算）
           const charCount = Array.from(finalTitle).reduce((sum, ch) => sum + (ch.charCodeAt(0) > 255 ? 2 : 1), 0);
           if (charCount > 40) {
             let total = 0;
@@ -127,7 +159,7 @@ export const useChat = () => {
               .join('');
           }
 
-          // 🔹 5. 更新到会话标题
+          // 更新到会话标题
           if (finalTitle) {
             updateConversationTitle(conversationId, finalTitle);
           }
@@ -142,8 +174,6 @@ export const useChat = () => {
       console.error('标题生成错误:', error);
     }
   }, [updateConversationTitle]);
-
-
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isLoading) return;
@@ -178,8 +208,6 @@ export const useChat = () => {
           : c
       )
     );
-
-    // 首次消息的标题生成将在AI回复完成后进行
 
     // 创建assistant消息，记录当前使用的模型信息
     const assistantMessage: ChatMessage = {
@@ -237,6 +265,7 @@ export const useChat = () => {
             // AI回复完成后生成对话标题
             generateConversationTitle(conversation.id, content.trim());
           }
+          setHasUnsavedChanges(true);
         },
         onError: (error: Error) => {
           setIsLoading(false);
@@ -267,6 +296,7 @@ export const useChat = () => {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
       setIsLoading(false);
+      setHasUnsavedChanges(true);
     }
   }, []);
 
@@ -364,6 +394,7 @@ export const useChat = () => {
         onComplete: () => {
           setIsLoading(false);
           abortControllerRef.current = null;
+          setHasUnsavedChanges(true);
         },
         onError: (error: Error) => {
           setIsLoading(false);
@@ -411,6 +442,7 @@ export const useChat = () => {
 
     setConversations(prev => [newConversation, ...prev]);
     setCurrentConversationId(newConversation.id);
+    setHasUnsavedChanges(true);
   }, [currentConversation]);
 
   // 编辑用户消息并重新生成回复
@@ -487,6 +519,7 @@ export const useChat = () => {
         onComplete: () => {
           setIsLoading(false);
           abortControllerRef.current = null;
+          setHasUnsavedChanges(true);
         },
         onError: (error: Error) => {
           setIsLoading(false);
@@ -517,9 +550,11 @@ export const useChat = () => {
     currentConversation,
     currentConversationId,
     isLoading,
+    hasUnsavedChanges, // 新增：暴露未保存更改状态
     setCurrentConversationId,
     createNewConversation,
     deleteConversation,
+    clearAllConversations, // 新增：清空所有对话方法
     updateConversationTitle,
     clearConversation,
     sendMessage,

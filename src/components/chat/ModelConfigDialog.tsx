@@ -196,7 +196,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
 
       <DialogContent className="!max-w-[1000px] w-[90vw] max-h-[95vh] h-[85vh] rounded-2xl p-6 flex flex-col">
         <DialogHeader className="pb-3 border-b">
-            <DialogTitle className="text-xl font-bold tracking-wide">{t('model.management')}</DialogTitle>
+          <DialogTitle className="text-xl font-bold tracking-wide">{t('model.management')}</DialogTitle>
           <DialogDescription>{t('model.description')}</DialogDescription>
         </DialogHeader>
 
@@ -235,11 +235,10 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                       <div
                         key={model.id}
                         onClick={() => handleEdit(model)}
-                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                          isSelected
+                        className={`p-3 rounded-lg border cursor-pointer transition-all ${isSelected
                             ? 'bg-primary/10 border-primary shadow-sm'
                             : 'hover:bg-accent/50 border-muted'
-                        }`}
+                          }`}
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
@@ -345,7 +344,16 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                       />
                     </div>
                   </div>
-
+                  <div className="space-y-2">
+                    <Label htmlFor="modelName">{t('model.modelIdentifier')}</Label>
+                    <Input
+                      id="modelName"
+                      value={editingModel?.modelName || ''}
+                      onChange={(e) => setEditingModel({ ...editingModel, modelName: e.target.value })}
+                      placeholder={t('model.modelIdentifierPlaceholder')} // 例如: gpt-4, llama3
+                    />
+                    <p className="text-xs text-muted-foreground">{t('model.modelIdentifierHelp')}</p>
+                  </div>
                   <div className="space-y-2">
                     <Label>{t('model.descriptionLabel')}</Label>
                     <Textarea
