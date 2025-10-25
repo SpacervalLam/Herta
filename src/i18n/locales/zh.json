@@ -62,11 +62,13 @@
     "collapse": "收起",
     "reasoned": "已思考",
     "reasoningProcess": "思考过程",
-    "imageTooLarge": "图片大小超过15MB，请重新选择",
-    "uploadImage": "上传图片",
-    "invalidImageFormat": "无效的图片格式，请重新选择",
-    "emptyInput": "请输入内容或上传图片",
-    "dropToUpload": "将图片拖放到此处上传"
+    "fileTooLarge": "文件 {{name}} 过大，请选择 15MB 以内的文件",
+    "unsupportedFileType": "不支持的文件类型: {{type}}",
+    "inputPlaceholderMultimodal": "输入问题或将文件拖放到此处...",
+    "supportsMultimodalHint": "可添加图片、音频或视频，支持拖拽上传",
+    "image": "图片",
+    "audio": "音频",
+    "video": "视频"
   },
   "sidebar": {
     "collapse": "收起",

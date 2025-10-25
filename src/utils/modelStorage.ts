@@ -89,6 +89,8 @@ export const getEnabledModels = (): ModelConfig[] => {
 export const setActiveModel = (modelId: string): void => {
   try {
     localStorage.setItem(ACTIVE_MODEL_KEY, modelId);
+    // 通知全局（ChatInput、设置面板等）模型已变更
+    window.dispatchEvent(new Event('settings-changed'));
   } catch (error) {
     console.error('设置激活模型失败:', error);
   }
@@ -115,6 +117,8 @@ export const getActiveModel = (): ModelConfig | null => {
 export const clearActiveModel = (): void => {
   try {
     localStorage.removeItem(ACTIVE_MODEL_KEY);
+    // 派发变更事件
+    window.dispatchEvent(new Event('settings-changed'));
   } catch (error) {
     console.error('清除激活模型失败:', error);
   }
