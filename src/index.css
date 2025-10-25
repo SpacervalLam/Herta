@@ -153,6 +153,19 @@ All colors MUST be HSL.
     color: hsl(var(--foreground));
   }
 
+  /* 语法高亮样式 */
+  .syntax-highlighter {
+    @apply rounded-xl overflow-hidden;
+  }
+
+  .syntax-highlighter pre {
+    @apply m-0 p-4 bg-transparent;
+  }
+
+  .syntax-highlighter code {
+    @apply bg-transparent p-0;
+  }
+
   /* 滚动条样式优化 */
   .custom-scrollbar::-webkit-scrollbar {
     width: 8px;

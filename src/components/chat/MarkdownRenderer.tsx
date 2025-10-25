@@ -3,10 +3,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
+import { Highlight, themes } from 'prism-react-renderer';
 import 'katex/dist/katex.min.css';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Check, Copy } from 'lucide-react';
+import { useTheme } from 'next-themes';
 
 /**
  * Markdown 渲染组件
@@ -24,6 +26,8 @@ interface MarkdownRendererProps {
 /* ---------------------------------- 代码块组件 ---------------------------------- */
 const CodeBlock = ({ className, children }: { className?: string; children: React.ReactNode }) => {
   const [copied, setCopied] = useState(false);
+  const { theme } = useTheme();
+
 
   const code = useMemo(() => {
     if (typeof children === 'string') return children.replace(/\n$/, '');
@@ -33,6 +37,11 @@ const CodeBlock = ({ className, children }: { className?: string; children: Reac
     }
     return String(children).replace(/\n$/, '');
   }, [children]);
+
+  const language = useMemo(() => {
+    const match = /language-(\w+)/.exec(className || '');
+    return match ? match[1] : 'text';
+  }, [className]);
 
   const handleCopy = async () => {
     try {
@@ -44,29 +53,59 @@ const CodeBlock = ({ className, children }: { className?: string; children: Reac
     }
   };
 
+  // 选择主题
+  const syntaxTheme = theme === 'dark' ? themes.vsDark : themes.vsLight;
+
   return (
     <div className="relative group my-3">
-      <pre className="bg-muted rounded-xl overflow-x-auto p-4 text-sm leading-relaxed">
-        <code className={className}>{children}</code>
-      </pre>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-        onClick={handleCopy}
-      >
-        {copied ? (
-          <>
-            <Check className="w-4 h-4 mr-1" />
-            已复制
-          </>
-        ) : (
-          <>
-            <Copy className="w-4 h-4 mr-1" />
-            复制
-          </>
-        )}
-      </Button>
+      <div className="relative">
+        <Highlight
+          theme={syntaxTheme}
+          code={code}
+          language={language}
+        >
+          {({ className, style, tokens, getLineProps, getTokenProps }) => (
+            <pre 
+              className={cn(className, "syntax-highlighter")} 
+              style={{
+                ...style,
+                margin: 0,
+                borderRadius: '12px',
+                fontSize: '14px',
+                lineHeight: '1.5',
+                padding: '16px',
+                background: 'transparent',
+              }}
+            >
+              {tokens.map((line, i) => (
+                <div key={i} {...getLineProps({ line })}>
+                  {line.map((token, key) => (
+                    <span key={key} {...getTokenProps({ token })} />
+                  ))}
+                </div>
+              ))}
+            </pre>
+          )}
+        </Highlight>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm"
+          onClick={handleCopy}
+        >
+          {copied ? (
+            <>
+              <Check className="w-4 h-4 mr-1" />
+              已复制
+            </>
+          ) : (
+            <>
+              <Copy className="w-4 h-4 mr-1" />
+              复制
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 };

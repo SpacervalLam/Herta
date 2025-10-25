@@ -8,6 +8,9 @@ export default defineConfig({
   plugins: [react(), svgr({
       svgrOptions: {
         icon: true, exportType: 'named', namedExport: 'ReactComponent', }, })],
+  optimizeDeps: {
+    include: ['prism-react-renderer']
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
