@@ -136,10 +136,10 @@ const ChatContent = ({
               <div className="text-5xl">👋</div>
               <div className="text-lg font-medium">{t('chat.hello', { modelName: currentModelName })}</div> {/* 修改 */}
               <div className="text-muted-foreground max-w-md">
-                {t('chat.welcomeMessage')} {/* 修改 */}
+                {t('chat.welcomeMessage')}
               </div>
               <div className="text-sm text-muted-foreground mt-4 space-y-2">
-                <p>{t('chat.configureModelHint')}</p> {/* 修改 */}
+                <p>{t('chat.configureModelHint')}</p>
               </div>
             </div>
           </div>

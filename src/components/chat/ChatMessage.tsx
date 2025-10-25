@@ -37,8 +37,9 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
 
   // 处理思维链内容 - 优化流式处理
   const parseContent = (content: string) => {
-    const startTag = '';
-    const endTag = '';
+    const startTag = '<think>';
+    const endTag = '</think>';
+    
 
     const hasStartTag = content.includes(startTag);
     const hasEndTag = content.includes(endTag);
@@ -103,7 +104,7 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
     try {
       // 使用多种方法尝试复制
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        const cleanedContent = message.content.replace(/[\s\S]*?<\/think>/g, '').trim();
+        const cleanedContent = message.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
         await navigator.clipboard.writeText(cleanedContent);
       } else {
         // 降级方案：使用传统的document.execCommand
