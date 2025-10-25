@@ -15,6 +15,24 @@ export interface ModelConfig {
   enabled: boolean;
   createdAt: number;
   updatedAt: number;
+  // 高级配置
+  supportsMultimodal?: boolean; // 是否支持多模态输入
+  customRequestConfig?: CustomRequestConfig; // 自定义请求配置
+}
+
+// 自定义请求配置
+export interface CustomRequestConfig {
+  enabled: boolean; // 是否启用自定义请求体
+  requestBodyTemplate: string; // 请求体模板（JSON字符串）
+  headers?: Record<string, string>; // 自定义请求头
+  responseParser?: ResponseParserConfig; // 响应解析配置
+}
+
+// 响应解析配置
+export interface ResponseParserConfig {
+  contentPath: string; // 响应内容在JSON中的路径，如 "choices[0].message.content"
+  errorPath?: string; // 错误信息路径，如 "error.message"
+  usagePath?: string; // 使用量信息路径，如 "usage"
 }
 
 export interface ModelPreset {
@@ -85,5 +103,16 @@ export const MODEL_PRESETS: ModelPreset[] = [
 export const DEFAULT_MODEL_CONFIG: Partial<ModelConfig> = {
   maxTokens: 2000,
   temperature: 0.7,
-  enabled: true
+  enabled: true,
+  supportsMultimodal: false,
+  customRequestConfig: {
+    enabled: false,
+    requestBodyTemplate: '',
+    headers: {},
+    responseParser: {
+      contentPath: 'choices[0].message.content',
+      errorPath: 'error.message',
+      usagePath: 'usage'
+    }
+  }
 };

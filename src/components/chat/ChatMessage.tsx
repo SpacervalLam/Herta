@@ -1,5 +1,5 @@
 import { memo, useState, useEffect } from 'react';
-import { Bot, Copy, RotateCw, GitBranch, Check, Edit2, X, Image as ImageIcon } from 'lucide-react';
+import { Bot, Copy, RotateCw, GitBranch, Check, Edit2, X, Image as ImageIcon, Mic, Video } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -252,6 +252,62 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
               </div>
             )}
 
+
+            {/* 附件显示 */}
+            {message.attachments && message.attachments.length > 0 && (
+              <div className="mb-3 space-y-2">
+                {message.attachments.map((attachment, index) => (
+                  <div key={index} className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg">
+                    {attachment.type === 'image' && (
+                      <div className="flex items-center gap-2">
+                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                        <img 
+                          src={attachment.url} 
+                          alt={attachment.fileName || '图片'} 
+                          className="max-w-[200px] max-h-[150px] object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => handleImageClick(attachment.url)}
+                        />
+                        {attachment.fileName && (
+                          <span className="text-xs text-muted-foreground truncate max-w-[100px]">
+                            {attachment.fileName}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {attachment.type === 'audio' && (
+                      <div className="flex items-center gap-2">
+                        <Mic className="h-4 w-4 text-muted-foreground" />
+                        <audio 
+                          src={attachment.url} 
+                          controls 
+                          className="max-w-[200px]"
+                        />
+                        {attachment.fileName && (
+                          <span className="text-xs text-muted-foreground truncate max-w-[100px]">
+                            {attachment.fileName}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {attachment.type === 'video' && (
+                      <div className="flex items-center gap-2">
+                        <Video className="h-4 w-4 text-muted-foreground" />
+                        <video 
+                          src={attachment.url} 
+                          controls 
+                          className="max-w-[200px] max-h-[150px] object-cover rounded"
+                        />
+                        {attachment.fileName && (
+                          <span className="text-xs text-muted-foreground truncate max-w-[100px]">
+                            {attachment.fileName}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* 主要内容 */}
             <div className="prose prose-sm dark:prose-invert max-w-none break-words">
