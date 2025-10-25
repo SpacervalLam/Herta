@@ -16,6 +16,7 @@ interface ChatContentProps {
   onRetryMessage?: (messageId: string) => void;
   onBranchConversation?: (messageId: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
+  onDeleteMessage?: (messageId: string) => void;
 }
 
 const ChatContent = ({
@@ -24,6 +25,7 @@ const ChatContent = ({
   onRetryMessage,
   onBranchConversation,
   onEditMessage,
+  onDeleteMessage,
 }: ChatContentProps) => {
   const { t } = useTranslation();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -153,6 +155,7 @@ const ChatContent = ({
                 onRetry={onRetryMessage}
                 onBranch={onBranchConversation}
                 onEdit={onEditMessage}
+                onDelete={onDeleteMessage}
               />
             ))}
           </div>

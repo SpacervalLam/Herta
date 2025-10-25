@@ -20,6 +20,7 @@ const ChatPage = () => {
     retryMessage,
     branchConversation,
     editMessage,
+    deleteMessage, 
   } = useChat();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -51,6 +52,7 @@ const ChatPage = () => {
             onRetryMessage={retryMessage}
             onBranchConversation={branchConversation}
             onEditMessage={editMessage}
+            onDeleteMessage={deleteMessage} 
           />
         </div>
         

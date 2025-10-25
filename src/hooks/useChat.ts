@@ -525,6 +525,47 @@ export const useChat = () => {
     }
   }, [currentConversation, isLoading]);
 
+  const deleteMessage = useCallback((messageId: string) => {
+    if (!currentConversation) return;
+
+    setConversations(prev =>
+      prev.map(c => {
+        if (c.id !== currentConversation.id) return c;
+
+        const msgs = c.messages;
+        const index = msgs.findIndex(m => m.id === messageId);
+        if (index === -1) return c;
+
+        const target = msgs[index];
+
+        let newMessages = [...msgs];
+
+        if (target.role === 'user') {
+          // 🔹 如果删除的是用户消息，且下一条是 assistant，则一起删除
+          if (msgs[index + 1] && msgs[index + 1].role === 'assistant') {
+            newMessages.splice(index, 2);
+          } else {
+            newMessages.splice(index, 1);
+          }
+        } else if (target.role === 'assistant') {
+          // 🔹 如果删除的是 AI 消息，且前一条是 user，则一起删除
+          if (msgs[index - 1] && msgs[index - 1].role === 'user') {
+            newMessages.splice(index - 1, 2);
+          } else {
+            newMessages.splice(index, 1);
+          }
+        }
+
+        return {
+          ...c,
+          messages: newMessages,
+          updatedAt: Date.now(),
+        };
+      })
+    );
+  }, [currentConversation]);
+
+
   return {
     conversations,
     currentConversation,
@@ -540,6 +581,7 @@ export const useChat = () => {
     exportConversation,
     retryMessage,
     branchConversation,
-    editMessage
+    editMessage,
+    deleteMessage
   };
 };

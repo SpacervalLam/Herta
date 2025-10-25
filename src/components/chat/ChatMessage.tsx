@@ -15,6 +15,7 @@ interface ChatMessageProps {
   onRetry?: (messageId: string) => void;
   onBranch?: (messageId: string) => void;
   onEdit?: (messageId: string, newContent: string) => void;
+  onDelete?: (messageId: string) => void;
 }
 
 // 简笔画小人头像SVG组件
@@ -25,7 +26,7 @@ const UserAvatarIcon = () => (
   </svg>
 );
 
-const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: ChatMessageProps) => {
+const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit, onDelete }: ChatMessageProps) => {
   const isUser = message.role === 'user';
   // 优先使用消息自带的模型名称，这样切换模型后历史消息的模型名称不会改变
   const displayName = isUser ? '你' : (message.modelName || modelName || 'AI助手');
@@ -173,6 +174,13 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
     setEditedContent(message.content);
   };
 
+  const handleDelete = () => {
+    if (onDelete) {
+      onDelete(message.id);
+      toast.success('消息已删除');
+    }
+  };
+
   const handleImageClick = (src: string) => {
     setSelectedImage(src);
     setImageDialogOpen(true);
@@ -267,9 +275,9 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
                     {attachment.type === 'image' && (
                       <div className="flex items-center gap-2">
                         <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                        <img 
-                          src={attachment.url} 
-                          alt="图片" 
+                        <img
+                          src={attachment.url}
+                          alt="图片"
                           className="max-w-[200px] max-h-[150px] object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
                           onClick={() => handleImageClick(attachment.url)}
                         />
@@ -278,9 +286,9 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
                     {attachment.type === 'audio' && (
                       <div className="flex items-center gap-2">
                         <Mic className="h-4 w-4 text-muted-foreground" />
-                        <audio 
-                          src={attachment.url} 
-                          controls 
+                        <audio
+                          src={attachment.url}
+                          controls
                           className="max-w-[200px]"
                         />
                       </div>
@@ -288,9 +296,9 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
                     {attachment.type === 'video' && (
                       <div className="flex items-center gap-2">
                         <Video className="h-4 w-4 text-muted-foreground" />
-                        <video 
-                          src={attachment.url} 
-                          controls 
+                        <video
+                          src={attachment.url}
+                          controls
                           className="max-w-[200px] max-h-[150px] object-cover rounded"
                         />
                       </div>
@@ -315,6 +323,16 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
               >
                 {copied ? <Check className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
                 {copied ? '已复制' : '复制'}
+              </Button>
+
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2"
+                onClick={handleDelete}
+              >
+                <X className="h-3 w-3 mr-1" />
+                删除
               </Button>
 
               {isUser && onEdit && (
@@ -362,9 +380,9 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
         <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] p-0 bg-background">
           {selectedImage && (
             <div className="flex items-center justify-center h-full p-4">
-              <img 
-                src={selectedImage} 
-                alt="预览" 
+              <img
+                src={selectedImage}
+                alt="预览"
                 className="max-w-full max-h-[80vh] object-contain"
                 onClick={() => setImageDialogOpen(false)}
               />
