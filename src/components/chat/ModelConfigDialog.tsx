@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,7 @@ interface ModelConfigDialogProps {
 }
 
 export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [models, setModels] = useState<ModelConfig[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -91,18 +93,18 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
 
   const handleSave = () => {
     if (!editingModel || !editingModel.name || !editingModel.apiUrl) {
-      toast.error('请填写必填字段');
+      toast.error(t('model.requiredFields'));
       return;
     }
 
     try {
       if (isNewModel) {
         const newModel = addModelConfig(editingModel as Omit<ModelConfig, 'id' | 'createdAt' | 'updatedAt'>);
-        toast.success('模型配置已添加');
+        toast.success(t('model.saveSuccess'));
         setActiveModel(newModel.id);
       } else if (selectedModelId) {
         updateModelConfig(selectedModelId, editingModel);
-        toast.success('模型配置已更新');
+        toast.success(t('model.saveSuccess'));
       }
 
       loadModels();
@@ -110,14 +112,14 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
       setIsNewModel(false);
       onModelChange?.();
     } catch {
-      toast.error('保存失败');
+      toast.error(t('error.unknownError'));
     }
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('确定要删除这个模型配置吗?')) {
+    if (confirm(t('model.deleteConfirm'))) {
       deleteModelConfig(id);
-      toast.success('模型配置已删除');
+      toast.success(t('model.deleteSuccess'));
       loadModels();
       if (selectedModelId === id) {
         setSelectedModelId(null);
@@ -135,7 +137,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
 
   const handleSetActive = (id: string) => {
     setActiveModel(id);
-    toast.success('已切换模型');
+    toast.success(t('model.switchSuccess'));
     onModelChange?.();
   };
 
@@ -158,7 +160,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
               modelType: 'local',
               apiUrl: 'http://localhost:11434/api/chat',
               modelName: ollamaModel.name,
-              description: `本地Ollama模型: ${ollamaModel.name}`,
+              description: `${t('model.ollamaDescriptionPrefix')} ${ollamaModel.name}`,
               maxTokens: 2000,
               temperature: 0.7,
               enabled: true
@@ -169,15 +171,15 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
         }
         toast.success(
           addedCount > 0
-            ? `检测到 ${installedModels.length} 个Ollama模型，新增 ${addedCount} 个配置`
-            : `检测到 ${installedModels.length} 个Ollama模型，均已配置`
+            ? t('model.detectOllamaAdded', { total: installedModels.length, added: addedCount })
+            : t('model.detectOllamaAllConfigured', { total: installedModels.length })
         );
         loadModels();
       } else {
-        toast.error(serviceStatus.error || 'Ollama服务未运行');
+        toast.error(serviceStatus.error || t('error.ollamaNotRunning'));
       }
     } catch (error) {
-      toast.error('检测Ollama模型失败');
+      toast.error(t('error.detectOllamaFailed'));
       console.error(error);
     } finally {
       setIsDetectingOllama(false);
@@ -187,28 +189,29 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" title="模型配置">
+        <Button variant="ghost" size="icon" title={t('model.config')}>
           <Settings className="h-5 w-5" />
         </Button>
       </DialogTrigger>
 
       <DialogContent className="!max-w-[1000px] w-[90vw] max-h-[95vh] h-[85vh] rounded-2xl p-6 flex flex-col">
         <DialogHeader className="pb-3 border-b">
-          <DialogTitle className="text-xl font-bold tracking-wide">模型配置管理</DialogTitle>
-          <DialogDescription>配置和管理您的 AI 模型接口</DialogDescription>
+            <DialogTitle className="text-xl font-bold tracking-wide">{t('model.management')}</DialogTitle>
+          <DialogDescription>{t('model.description')}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-1 overflow-hidden gap-6 mt-4 flex-col sm:flex-row">
           {/* 左侧：模型列表 */}
           <Card className="w-full sm:w-72 flex-shrink-0 border rounded-xl shadow-sm flex flex-col overflow-hidden">
             <div className="p-4 border-b bg-muted/20 flex justify-between items-center">
-              <h3 className="font-semibold text-sm">已配置模型</h3>
+              <h3 className="font-semibold text-sm">{t('model.configured')}</h3>
               <div className="flex gap-1">
                 <Button
                   size="icon"
                   variant="ghost"
                   onClick={detectOllamaModels}
                   disabled={isDetectingOllama}
+                  title={t('model.detectOllama')}
                 >
                   {isDetectingOllama ? (
                     <RefreshCw className="h-4 w-4 animate-spin" />
@@ -216,7 +219,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                     <Server className="h-4 w-4" />
                   )}
                 </Button>
-                <Button size="icon" variant="outline" onClick={handleAddNew}>
+                <Button size="icon" variant="outline" onClick={handleAddNew} title={t('model.addNew')}>
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
@@ -245,7 +248,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                               {model.modelType}
                             </div>
                             {isActive && (
-                              <div className="text-xs text-primary mt-1 font-medium">✓ 当前使用</div>
+                              <div className="text-xs text-primary mt-1 font-medium">{t('model.currentModel')}</div>
                             )}
                           </div>
                           <Button
@@ -266,7 +269,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                 </div>
               ) : (
                 <div className="text-center text-muted-foreground py-8 text-sm">
-                  暂无配置的模型
+                  {t('model.noModels')}
                 </div>
               )}
             </ScrollArea>
@@ -279,10 +282,10 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                 <div className="space-y-5">
                   {isNewModel && (
                     <div className="space-y-2">
-                      <Label>选择预设模板</Label>
+                      <Label>{t('model.selectPreset')}</Label>
                       <Select onValueChange={handleSelectPreset}>
                         <SelectTrigger>
-                          <SelectValue placeholder="选择一个预设模板..." />
+                          <SelectValue placeholder={t('model.selectPresetPlaceholder')} />
                         </SelectTrigger>
                         <SelectContent>
                           {MODEL_PRESETS.map(preset => (
@@ -297,15 +300,15 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>模型名称 *</Label>
+                      <Label>{t('model.name')} *</Label>
                       <Input
                         value={editingModel.name || ''}
                         onChange={e => setEditingModel({ ...editingModel, name: e.target.value })}
-                        placeholder="例如: GPT-4"
+                        placeholder={t('model.namePlaceholder')}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>模型类型</Label>
+                      <Label>{t('model.type')}</Label>
                       <Select
                         value={editingModel.modelType}
                         onValueChange={v => setEditingModel({ ...editingModel, modelType: v as any })}
@@ -325,7 +328,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>API地址 *</Label>
+                      <Label>{t('model.apiUrl')} *</Label>
                       <Input
                         value={editingModel.apiUrl || ''}
                         onChange={e => setEditingModel({ ...editingModel, apiUrl: e.target.value })}
@@ -333,7 +336,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>API密钥</Label>
+                      <Label>{t('model.apiKey')}</Label>
                       <Input
                         type="password"
                         value={editingModel.apiKey || ''}
@@ -344,18 +347,18 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                   </div>
 
                   <div className="space-y-2">
-                    <Label>描述</Label>
+                    <Label>{t('model.descriptionLabel')}</Label>
                     <Textarea
                       value={editingModel.description || ''}
                       onChange={e => setEditingModel({ ...editingModel, description: e.target.value })}
-                      placeholder="模型描述..."
+                      placeholder={t('model.descriptionPlaceholder')}
                       rows={3}
                     />
                   </div>
 
                   <div className="grid grid-cols-3 gap-6">
                     <div className="space-y-2">
-                      <Label>最大Token数</Label>
+                      <Label>{t('model.maxTokens')}</Label>
                       <Input
                         type="number"
                         value={editingModel.maxTokens || ''}
@@ -364,7 +367,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>温度 (0-2)</Label>
+                      <Label>{t('model.temperature')}</Label>
                       <Input
                         type="number"
                         step="0.1"
@@ -376,24 +379,24 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>启用状态</Label>
+                      <Label>{t('model.enabled')}</Label>
                       <div className="flex items-center h-10 space-x-2">
                         <Switch
                           checked={editingModel.enabled}
                           onCheckedChange={checked => setEditingModel({ ...editingModel, enabled: checked })}
                         />
-                        <span className="text-sm">{editingModel.enabled ? '已启用' : '已禁用'}</span>
+                        <span className="text-sm">{editingModel.enabled ? t('model.enabled') : t('model.disabled')}</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex gap-3 pt-4">
                     <Button onClick={handleSave} className="flex-1">
-                      <Save className="h-4 w-4 mr-2" /> 保存配置
+                      <Save className="h-4 w-4 mr-2" /> {t('model.saveConfig')}
                     </Button>
                     {!isNewModel && selectedModelId && (
                       <Button variant="outline" onClick={() => handleSetActive(selectedModelId)}>
-                        设为当前模型
+                        {t('model.setActive')}
                       </Button>
                     )}
                   </div>
@@ -402,8 +405,8 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                 <div className="text-3xl mb-2">🧩</div>
-                <div className="text-sm">选择一个模型进行编辑</div>
-                <div className="text-xs mt-1">或点击「新增」添加新模型</div>
+                <div className="text-sm">{t('settings.selectModelToEdit')}</div>
+                <div className="text-xs mt-1">{t('settings.orClickAddNewToAddNewModel')}</div>
               </div>
             )}
           </Card>

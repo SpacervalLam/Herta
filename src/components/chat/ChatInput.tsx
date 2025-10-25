@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Square, Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -13,6 +14,7 @@ interface ChatInputProps {
 }
 
 const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
+  const { t } = useTranslation();
   const [input, setInput] = useState('');
   const [sendKey, setSendKey] = useState<'enter' | 'ctrl-enter'>('ctrl-enter');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -103,7 +105,7 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入问题..."
+            placeholder={t('chat.inputPlaceholder')}
             disabled={disabled || isLoading}
             className={cn(
               'flex-1 min-h-[40px] max-h-[200px] resize-none border-0 bg-transparent',
@@ -140,8 +142,8 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
         {/* 提示文字 */}
         <div className="mt-2 text-xs text-muted-foreground text-center">
           {sendKey === 'ctrl-enter' 
-            ? '按 Ctrl+Enter 发送消息' 
-            : '按 Enter 发送消息，Shift+Enter 换行'}
+            ? t('chat.sendWithCtrlEnter') 
+            : t('chat.sendWithEnter')}
         </div>
       </div>
     </div>

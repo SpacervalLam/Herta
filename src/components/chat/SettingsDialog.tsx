@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Moon, Sun, Monitor } from 'lucide-react';
 import {
   Dialog,
@@ -18,6 +19,7 @@ interface SettingsDialogProps {
 }
 
 const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
+  const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const [sendKey, setSendKey] = useState<'enter' | 'ctrl-enter'>('ctrl-enter');
 
@@ -37,35 +39,35 @@ const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>设置</DialogTitle>
+          <DialogTitle>{t('settings.title')}</DialogTitle>
           <DialogDescription>
-            自定义你的AI对话界面
+            {t('settings.description')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           <div className="space-y-3">
-            <Label className="text-base font-semibold">主题</Label>
+            <Label className="text-base font-semibold">{t('settings.theme')}</Label> {/* 修改 */}
             <RadioGroup value={theme} onValueChange={setTheme}>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="light" id="light" />
                 <Label htmlFor="light" className="flex items-center gap-2 cursor-pointer">
                   <Sun className="h-4 w-4" />
-                  浅色
+                  {t('settings.light')}
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="dark" id="dark" />
                 <Label htmlFor="dark" className="flex items-center gap-2 cursor-pointer">
                   <Moon className="h-4 w-4" />
-                  深色
+                  {t('settings.dark')}
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="system" id="system" />
                 <Label htmlFor="system" className="flex items-center gap-2 cursor-pointer">
                   <Monitor className="h-4 w-4" />
-                  跟随系统
+                  {t('settings.system')}
                 </Label>
               </div>
             </RadioGroup>
@@ -73,14 +75,14 @@ const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
 
           {/* 发送消息快捷键设置 */}
           <div className="space-y-3">
-            <Label className="text-base font-semibold">发送消息快捷键</Label>
+            <Label className="text-base font-semibold">{t('settings.sendMessageKey')}</Label>
             <RadioGroup value={sendKey} onValueChange={handleSendKeyChange}>
               <div className="flex items-start space-x-2">
                 <RadioGroupItem value="ctrl-enter" id="send-ctrl-enter" className="mt-1" />
                 <div className="flex-1">
                   <Label htmlFor="send-ctrl-enter" className="cursor-pointer">
-                    <div className="font-medium">Ctrl + Enter 发送</div>
-                    <div className="text-sm text-muted-foreground">Enter 键换行</div>
+                    <div className="font-medium">{t('settings.ctrlEnterSend')}</div>
+                    <div className="text-sm text-muted-foreground">{t('settings.enterNewline')}</div>
                   </Label>
                 </div>
               </div>
@@ -88,8 +90,8 @@ const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
                 <RadioGroupItem value="enter" id="send-enter" className="mt-1" />
                 <div className="flex-1">
                   <Label htmlFor="send-enter" className="cursor-pointer">
-                    <div className="font-medium">Enter 发送</div>
-                    <div className="text-sm text-muted-foreground">Shift + Enter 换行</div>
+                    <div className="font-medium">{t('settings.enterSend')}</div>
+                    <div className="text-sm text-muted-foreground">{t('settings.shiftEnterNewline')}</div>
                   </Label>
                 </div>
               </div>

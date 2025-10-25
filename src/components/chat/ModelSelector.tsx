@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Select,
   SelectContent,
@@ -15,6 +16,7 @@ interface ModelSelectorProps {
 }
 
 export default function ModelSelector({ onModelChange }: ModelSelectorProps) {
+  const { t } = useTranslation();
   const [models, setModels] = useState<ModelConfig[]>([]);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
 
@@ -34,7 +36,7 @@ export default function ModelSelector({ onModelChange }: ModelSelectorProps) {
     setActiveModelId(modelId);
     const model = models.find(m => m.id === modelId);
     if (model) {
-      toast.success(`已切换到 ${model.name}`);
+      toast.success(t('model.switchTo', { name: model.name }));
     }
     onModelChange?.();
   };
@@ -42,7 +44,7 @@ export default function ModelSelector({ onModelChange }: ModelSelectorProps) {
   if (models.length === 0) {
     return (
       <div className="text-sm text-muted-foreground">
-        请先配置模型
+        {t('model.noModels')}
       </div>
     );
   }
@@ -54,8 +56,8 @@ export default function ModelSelector({ onModelChange }: ModelSelectorProps) {
     <Select value={activeModelId || undefined} onValueChange={handleModelChange}>
       <SelectTrigger className="w-[200px]">
         {/*只显示模型名称，不显示描述 */}
-        <SelectValue placeholder="选择模型...">
-          {activeModel ? activeModel.name : '选择模型...'}
+        <SelectValue placeholder={t('model.selectModel')}>
+          {activeModel ? activeModel.name : t('model.selectModel')}
         </SelectValue>
       </SelectTrigger>
 

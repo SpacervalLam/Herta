@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Edit2, Check, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import ChatMessage from './ChatMessage';
@@ -24,6 +25,7 @@ const ChatContent = ({
   onBranchConversation,
   onEditMessage,
 }: ChatContentProps) => {
+  const { t } = useTranslation();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
@@ -36,11 +38,11 @@ const ChatContent = ({
     if (activeModelId) {
       const models = getModelConfigs();
       const model = models.find(m => m.id === activeModelId);
-      setCurrentModelName(model?.name || 'AI助手');
+      setCurrentModelName(model?.name || t('chat.assistant'));
     } else {
-      setCurrentModelName('AI助手');
+      setCurrentModelName(t('chat.assistant'));
     }
-  }, [modelKey]);
+  }, [modelKey, t]);
 
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -76,9 +78,9 @@ const ChatContent = ({
       <div className="flex items-center justify-center h-full">
         <div className="text-center space-y-4">
           <div className="text-6xl">💬</div>
-          <div className="text-xl font-semibold">开始新对话</div>
+          <div className="text-xl font-semibold">{t('chat.startNewChat')}</div>
           <div className="text-muted-foreground">
-            点击左侧"新建对话"按钮开始与AI助手交流
+            {t('chat.clickNewChatToStart')}
           </div>
         </div>
       </div>
@@ -100,6 +102,7 @@ const ChatContent = ({
                 }}
                 className="max-w-md"
                 autoFocus
+                placeholder={t('chat.conversationTitlePlaceholder')}
               />
               <Button size="icon" variant="ghost" onClick={handleSaveTitle}>
                 <Check className="h-4 w-4" />
@@ -131,12 +134,12 @@ const ChatContent = ({
           <div className="flex items-center justify-center min-h-full p-8">
             <div className="text-center space-y-4">
               <div className="text-5xl">👋</div>
-              <div className="text-lg font-medium">你好！我是{currentModelName}</div>
+              <div className="text-lg font-medium">{t('chat.hello', { modelName: currentModelName })}</div> {/* 修改 */}
               <div className="text-muted-foreground max-w-md">
-                我可以帮你解答问题、提供建议、进行创作等。请在下方输入框中输入你的问题或需求。
+                {t('chat.welcomeMessage')} {/* 修改 */}
               </div>
               <div className="text-sm text-muted-foreground mt-4 space-y-2">
-                <p>⚙️ 点击右上角设置图标配置AI模型</p>
+                <p>{t('chat.configureModelHint')}</p> {/* 修改 */}
               </div>
             </div>
           </div>
