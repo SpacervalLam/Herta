@@ -38,8 +38,8 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
 
   // 处理思维链内容 - 优化流式处理
   const parseContent = (content: string) => {
-    const startTag = '';
-    const endTag = '';
+    const startTag = '<think>';
+    const endTag = '</think>';
 
     const hasStartTag = content.includes(startTag);
     const hasEndTag = content.includes(endTag);
@@ -56,11 +56,14 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
       const mainContent = (beforeReasoning + ' ' + afterReasoning).trim();
       const reasoningTime = Math.ceil(reasoning.length / 50);
 
+      // 只有当思维链内容不为空时才显示思考框
+      const hasValidReasoning = reasoning.length > 0;
+
       return {
         mainContent,
         reasoning,
         reasoningTime,
-        hasReasoning: true,
+        hasReasoning: hasValidReasoning,
         isStreamingReasoning: false,
         isComplete: true
       };
@@ -71,11 +74,14 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit }: Cha
       const mainContent = content.substring(0, startIndex).trim();
       const reasoningTime = Math.ceil(reasoning.length / 50);
 
+      // 只有当思维链内容不为空时才显示思考框
+      const hasValidReasoning = reasoning.length > 0;
+
       return {
         mainContent,
         reasoning,
         reasoningTime,
-        hasReasoning: true,
+        hasReasoning: hasValidReasoning,
         isStreamingReasoning: true,
         isComplete: false
       };
