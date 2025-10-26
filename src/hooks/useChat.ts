@@ -13,7 +13,6 @@ export const useChat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // ✅ 初始化加载
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -29,43 +28,14 @@ export const useChat = () => {
     }
   }, []);
 
-  // ✅ 自动保存（过滤 Base64 附件）
   useEffect(() => {
-    if (conversations.length === 0) return;
-
-    try {
-      // 深拷贝，防止污染原 state
-      const safeCopy: Conversation[] = JSON.parse(JSON.stringify(conversations));
-
-      // 清理附件中的 Base64 数据，但保留网络 URL
-      safeCopy.forEach(conv => {
-        conv.messages.forEach(msg => {
-          if (msg.attachments) {
-            msg.attachments = msg.attachments.map(att => {
-              // 判断是否为 base64 数据（通常以 data: 开头）
-              const isBase64 = att.url.startsWith('data:');
-              return {
-                ...att,
-                // 只清空 base64 数据，保留网络图片 URL
-                url: isBase64 ? '' : att.url
-              };
-            });
-          }
-        });
-      });
-
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(safeCopy));
-    } catch (err) {
-      console.warn('⚠️ 存储对话失败（可能超出 localStorage 容量）:', err);
+    if (conversations.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
     }
   }, [conversations]);
 
-
-
-
   const currentConversation = conversations.find(c => c.id === currentConversationId);
 
-  // ✅ 新建对话
   const createNewConversation = useCallback(() => {
     const newConversation: Conversation = {
       id: `conv-${Date.now()}`,
@@ -73,14 +43,15 @@ export const useChat = () => {
       messages: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      isSaved: false,
+      isSaved: false // 标记为未保存，只有发送第一条消息后才保存到列表
     };
+    // 不立即添加到conversations列表，只设置为当前对话
     setConversations(prev => [newConversation, ...prev]);
     setCurrentConversationId(newConversation.id);
     return newConversation;
   }, []);
 
-  // ✅ 删除整个对话
+
   const deleteConversation = useCallback((id: string) => {
     setConversations(prev => {
       const filtered = prev.filter(c => c.id !== id);
@@ -93,107 +64,116 @@ export const useChat = () => {
     });
   }, [currentConversationId]);
 
-  // ✅ 更新标题
   const updateConversationTitle = useCallback((id: string, title: string) => {
     setConversations(prev =>
       prev.map(c => c.id === id ? { ...c, title, updatedAt: Date.now() } : c)
     );
   }, []);
 
-  // ✅ 清空对话内容
   const clearConversation = useCallback((id: string) => {
     setConversations(prev =>
       prev.map(c => c.id === id ? { ...c, messages: [], updatedAt: Date.now() } : c)
     );
   }, []);
 
-  // ✅ 删除单条消息（成对删除用户与AI）
-  const deleteMessage = useCallback((messageId: string) => {
-    if (!currentConversation) return;
-
-    setConversations(prev =>
-      prev.map(c => {
-        if (c.id !== currentConversation.id) return c;
-
-        const msgs = c.messages;
-        const index = msgs.findIndex(m => m.id === messageId);
-        if (index === -1) return c;
-
-        const target = msgs[index];
-        let newMessages = [...msgs];
-
-        if (target.role === 'user') {
-          if (msgs[index + 1] && msgs[index + 1].role === 'assistant') {
-            newMessages.splice(index, 2);
-          } else {
-            newMessages.splice(index, 1);
-          }
-        } else if (target.role === 'assistant') {
-          if (msgs[index - 1] && msgs[index - 1].role === 'user') {
-            newMessages.splice(index - 1, 2);
-          } else {
-            newMessages.splice(index, 1);
-          }
-        }
-
-        return { ...c, messages: newMessages, updatedAt: Date.now() };
-      })
-    );
-  }, [currentConversation]);
-
-  // ✅ 自动生成标题
+  // AI自动生成对话标题
   const generateConversationTitle = useCallback(async (conversationId: string, firstMessage: string) => {
     const activeModel = getActiveModel();
     if (!activeModel) return;
 
     try {
-      const titlePrompt = `用户用以下问题开启了一次对话，请生成一个简短的对话标题（不超过20字）：\n\n${firstMessage}`;
+      const titlePrompt = `用户用以下问题开启了一次对话，请根据用户的问题，生成一个简短的对话标题，反应用户对话的主题（不超过20个字，不要加引号，只返回标题本身，不要其他任何说明）：用户问题内容：\n\n${firstMessage}`;
 
       let generatedTitle = '';
       const controller = new AbortController();
       const timeoutMs = 8000;
 
-      const timeoutHandle = setTimeout(() => { }, timeoutMs);
+
+      const timeoutHandle = setTimeout(() => {
+        // 仅标记超时，不强制中断
+      }, timeoutMs);
 
       await sendChatStream({
         endpoint: activeModel.apiUrl,
         apiKey: activeModel.apiKey,
         modelConfig: activeModel,
         messages: [{ id: 'temp', role: 'user', content: titlePrompt, timestamp: Date.now() }],
-        onUpdate: (content: string) => (generatedTitle = content.trim()),
+        onUpdate: (content: string) => {
+          // 累积流式内容
+          generatedTitle = content.trim();
+        },
         onComplete: () => {
           clearTimeout(timeoutHandle);
-          let title = generatedTitle.replace(/[\s\S]*?<\/think>/gi, '').split('\n')[0].trim();
-          if (!title) title = firstMessage.slice(0, 12);
-          updateConversationTitle(conversationId, title);
+
+          let finalTitle = generatedTitle.trim();
+
+          // 🔹 1. 移除 ...<|FunctionCallEnd|> 思维链段落
+          finalTitle = finalTitle.replace(/[\s\S]*?<\/think>/gi, '');
+
+          // 🔹 2. 仅取首行并清理多余空格与引号
+          finalTitle = finalTitle.split('\n')[0].replace(/^["'\s]+|["'\s]+$/g, '').trim();
+
+          // 🔹 3. 若为空则使用用户消息回退
+          if (!finalTitle) {
+            finalTitle = firstMessage.trim().slice(0, 12) || 'New Conversation';
+          }
+
+          // 🔹 4. 长度约束：最多40字符（宽字符按2算）
+          const charCount = Array.from(finalTitle).reduce((sum, ch) => sum + (ch.charCodeAt(0) > 255 ? 2 : 1), 0);
+          if (charCount > 40) {
+            let total = 0;
+            finalTitle = Array.from(finalTitle)
+              .filter(ch => {
+                total += ch.charCodeAt(0) > 255 ? 2 : 1;
+                return total <= 40;
+              })
+              .join('');
+          }
+
+
+          // 🔹 5. 更新到会话标题
+          if (finalTitle) {
+            updateConversationTitle(conversationId, finalTitle);
+          }
         },
         onError: (err) => {
           clearTimeout(timeoutHandle);
           console.error('标题生成失败:', err);
         },
-        signal: controller.signal,
+        signal: controller.signal
       });
     } catch (error) {
       console.error('标题生成错误:', error);
     }
   }, [updateConversationTitle]);
 
-  // ✅ 发送消息
+
+
   const sendMessage = useCallback(async (content: string, attachments?: MediaAttachment[]) => {
     if ((!content.trim() && !attachments?.length) || isLoading) return;
 
+    // 获取当前激活的模型配置
     const activeModel = getActiveModel();
     if (!activeModel) {
-      toast.error('请先配置AI模型');
+      toast.error('请先配置AI模型', {
+        description: '点击顶部模型选择器旁的设置图标进行配置'
+      });
       return;
     }
 
-    if (attachments?.length && !activeModel.supportsMultimodal) {
-      toast.error('当前模型不支持多模态输入');
+    // 检查模型是否支持多模态
+    if (attachments?.length && (!activeModel.supportsMultimodal)) {
+      toast.error('当前模型不支持多模态输入', {
+        description: '请切换到支持图片等媒体的模型'
+      });
       return;
     }
 
-    let conversation = currentConversation || createNewConversation();
+    let conversation = currentConversation;
+    if (!conversation) {
+      conversation = createNewConversation();
+    }
+
     const isFirstMessage = conversation.messages.length === 0;
 
     const userMessage: ChatMessage = {
@@ -201,22 +181,34 @@ export const useChat = () => {
       role: 'user',
       content: content.trim(),
       timestamp: Date.now(),
-      attachments,
+      attachments: attachments // 添加附件
     };
+
+    setConversations(prev =>
+      prev.map(c =>
+        c.id === conversation!.id
+          ? { ...c, messages: [...c.messages, userMessage], updatedAt: Date.now() }
+          : c
+      )
+    );
+
+    // 首次消息的标题生成将在AI回复完成后进行
+
+    // 创建assistant消息，记录当前使用的模型信息
 
     const assistantMessage: ChatMessage = {
       id: `msg-${Date.now() + 1}`,
       role: 'assistant',
       content: '',
       timestamp: Date.now(),
-      modelName: activeModel.name,
-      modelId: activeModel.id,
+      modelName: activeModel.name, // 记录模型名称
+      modelId: activeModel.id // 记录模型ID
     };
 
     setConversations(prev =>
       prev.map(c =>
-        c.id === conversation.id
-          ? { ...c, messages: [...c.messages, userMessage, assistantMessage], updatedAt: Date.now() }
+        c.id === conversation!.id
+          ? { ...c, messages: [...c.messages, assistantMessage] }
           : c
       )
     );
@@ -233,12 +225,12 @@ export const useChat = () => {
         onUpdate: (content: string) => {
           setConversations(prev =>
             prev.map(c =>
-              c.id === conversation.id
+              c.id === conversation!.id
                 ? {
                   ...c,
                   messages: c.messages.map(m =>
                     m.id === assistantMessage.id ? { ...m, content } : m
-                  ),
+                  )
                 }
                 : c
             )
@@ -247,28 +239,44 @@ export const useChat = () => {
         onComplete: () => {
           setIsLoading(false);
           abortControllerRef.current = null;
+
+          // 如果是首次消息且对话未保存，标记为已保存
           if (isFirstMessage) {
             setConversations(prev =>
               prev.map(c =>
-                c.id === conversation.id ? { ...c, isSaved: true } : c
+                c.id === conversation!.id ? { ...c, isSaved: true } : c
               )
             );
+
+
+            // AI回复完成后生成对话标题
             generateConversationTitle(conversation.id, content.trim());
           }
         },
         onError: (error: Error) => {
           setIsLoading(false);
           abortControllerRef.current = null;
-          toast.error('发送失败', { description: error.message });
+          toast.error('发送消息失败', {
+            description: error.message || '请检查模型配置或稍后重试'
+          });
+          setConversations(prev =>
+            prev.map(c =>
+              c.id === conversation!.id
+                ? {
+                  ...c,
+                  messages: c.messages.filter(m => m.id !== assistantMessage.id)
+                }
+                : c
+            )
+          );
         },
-        signal: abortControllerRef.current.signal,
+        signal: abortControllerRef.current.signal
       });
     } catch (error) {
       console.error('Send message error:', error);
     }
   }, [currentConversation, isLoading, createNewConversation, generateConversationTitle]);
 
-  // ✅ 停止生成
   const stopGeneration = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -277,20 +285,25 @@ export const useChat = () => {
     }
   }, []);
 
-  // ✅ 导出
   const exportConversation = useCallback((id: string) => {
     const conversation = conversations.find(c => c.id === id);
     if (!conversation) return;
+
     const content = conversation.messages
-      .map(m => `${m.role === 'user' ? '用户' : 'AI'}: ${m.content}`)
+      .map(m => `${m.role === 'user' ? '用户' : 'AI助手'}: ${m.content}`)
       .join('\n\n');
+
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${conversation.title}.txt`;
+    a.download = `${conversation.title}-${new Date().toLocaleDateString()}.txt`;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
     toast.success('对话已导出');
   }, [conversations]);
 
@@ -511,6 +524,46 @@ export const useChat = () => {
       console.error('Edit message error:', error);
     }
   }, [currentConversation, isLoading]);
+
+  const deleteMessage = useCallback((messageId: string) => {
+    if (!currentConversation) return;
+
+    setConversations(prev =>
+      prev.map(c => {
+        if (c.id !== currentConversation.id) return c;
+
+        const msgs = c.messages;
+        const index = msgs.findIndex(m => m.id === messageId);
+        if (index === -1) return c;
+
+        const target = msgs[index];
+
+        let newMessages = [...msgs];
+
+        if (target.role === 'user') {
+          // 🔹 如果删除的是用户消息，且下一条是 assistant，则一起删除
+          if (msgs[index + 1] && msgs[index + 1].role === 'assistant') {
+            newMessages.splice(index, 2);
+          } else {
+            newMessages.splice(index, 1);
+          }
+        } else if (target.role === 'assistant') {
+          // 🔹 如果删除的是 AI 消息，且前一条是 user，则一起删除
+          if (msgs[index - 1] && msgs[index - 1].role === 'user') {
+            newMessages.splice(index - 1, 2);
+          } else {
+            newMessages.splice(index, 1);
+          }
+        }
+
+        return {
+          ...c,
+          messages: newMessages,
+          updatedAt: Date.now(),
+        };
+      })
+    );
+  }, [currentConversation]);
 
 
   return {
