@@ -3,6 +3,9 @@ import { createParser, type EventSourceParser } from 'eventsource-parser';
 import type { ChatMessage } from '@/types/chat';
 import type { ModelConfig, CustomRequestConfig } from '@/types/model';
 
+// 翻译提示词前缀标识 - 与translationService保持一致
+const TRANSLATION_PROMPT_PREFIX = 'TRANSLATE_FROM_';
+
 export interface SSEOptions {
   onData: (data: string) => void;
   onEvent?: (event: any) => void;
@@ -48,7 +51,6 @@ export const createSSEHook = (options: SSEOptions): AfterResponseHook => {
       });
     } else if (contentType.includes('application/json')) {
       // 百度千帆API可能使用JSON流格式
-      console.log('检测到JSON流格式，使用特殊处理');
     }
 
     const read = (): void => {
@@ -66,7 +68,6 @@ export const createSSEHook = (options: SSEOptions): AfterResponseHook => {
           // 处理不同的流式格式
           if (contentType.includes('application/json')) {
             // 百度千帆API的JSON流格式
-            console.log('处理百度千帆JSON流:', chunk);
             try {
               // 尝试解析为JSON
               const jsonData = JSON.parse(chunk);
@@ -77,7 +78,6 @@ export const createSSEHook = (options: SSEOptions): AfterResponseHook => {
               for (const line of lines) {
                 // 检查是否是结束标记
                 if (line.trim() === '[DONE]' || line.trim() === 'data: [DONE]') {
-                  console.log('检测到流式结束标记');
                   continue;
                 }
                 
@@ -85,7 +85,7 @@ export const createSSEHook = (options: SSEOptions): AfterResponseHook => {
                   JSON.parse(line);
                   options.onData(line);
                 } catch (parseError) {
-                  console.warn('解析JSON行失败:', parseError);
+                  // 静默处理解析错误
                 }
               }
             }
@@ -95,15 +95,14 @@ export const createSSEHook = (options: SSEOptions): AfterResponseHook => {
             for (const line of lines) {
               // 检查是否是结束标记
               if (line.trim() === '[DONE]' || line.trim() === 'data: [DONE]') {
-                console.log('检测到流式结束标记');
-                continue;
-              }
+                  continue;
+                }
               
               try {
                 JSON.parse(line);
                 options.onData(line);
               } catch (error) {
-                console.warn('解析JSON行失败:', error);
+                // 静默处理解析错误
               }
             }
           }
@@ -214,18 +213,17 @@ const buildCustomRequestBody = (
     .replace(/\{\{apiKey\}\}/g, apiKey || '');
 
   // 特殊处理：如果是百度千帆API，先尝试非流式请求
-  if (modelConfig.apiUrl.includes('qianfan.baidubce.com')) {
-    try {
-      const requestBody = JSON.parse(requestBodyStr);
-      // 百度千帆可能不支持流式响应，先尝试非流式
-      if (requestBody.hasOwnProperty('stream')) {
-        delete requestBody.stream;
-        requestBodyStr = JSON.stringify(requestBody);
+    if (modelConfig.apiUrl.includes('qianfan.baidubce.com')) {
+      try {
+        const requestBody = JSON.parse(requestBodyStr);
+        // 百度千帆可能不支持流式响应，先尝试非流式
+        if (requestBody.hasOwnProperty('stream')) {
+          delete requestBody.stream;
+          requestBodyStr = JSON.stringify(requestBody);
+        }
+      } catch (error) {
+        // 静默处理错误
       }
-      console.log('百度千帆API请求体（非流式）:', requestBodyStr);
-    } catch (error) {
-      console.warn('无法处理百度千帆API请求体:', error);
-    }
   }
 
   try {
@@ -249,9 +247,9 @@ const parseCustomResponse = (data: string, responseParser: CustomRequestConfig['
     const content = getNestedValue(parsed, responseParser.contentPath);
     return content || '';
   } catch (error) {
-    console.warn('解析自定义响应失败:', error);
-    return '';
-  }
+      // 静默处理解析错误
+      return '';
+    }
 };
 
 // 获取嵌套值
@@ -268,97 +266,121 @@ const getNestedValue = (obj: any, path: string): any => {
 
 // 百度千帆API响应解析
 const parseBaiduQianfanResponse = (parsed: any): string => {
-  console.log('解析百度千帆响应:', JSON.stringify(parsed, null, 2));
-  
   // 百度千帆流式响应格式
   if (parsed.choices?.[0]?.delta?.content) {
-    console.log('使用百度千帆流式格式解析');
     return parsed.choices[0].delta.content;
   }
   // 百度千帆非流式响应格式
   else if (parsed.choices?.[0]?.message?.content) {
-    console.log('使用百度千帆非流式格式解析');
     return parsed.choices[0].message.content;
   }
   // 百度千帆其他格式
   else if (parsed.result) {
-    console.log('使用百度千帆result格式解析');
     return parsed.result;
   }
   // 百度千帆错误格式
   else if (parsed.error) {
-    console.log('百度千帆API错误:', parsed.error);
     return '';
   }
   
-  console.log('未找到百度千帆可解析的内容格式');
   return '';
 };
 
 // 默认响应解析
 const parseDefaultResponse = (parsed: any): string => {
-  console.log('尝试解析响应:', JSON.stringify(parsed, null, 2));
-  
   // OpenAI格式
   if (parsed.choices?.[0]?.delta?.content) {
-    console.log('使用OpenAI格式解析');
     return parsed.choices[0].delta.content;
   }
   // Claude格式
   else if (parsed.delta?.text) {
-    console.log('使用Claude格式解析');
     return parsed.delta.text;
   }
   // Gemini格式
   else if (parsed.candidates?.[0]?.content?.parts?.[0]?.text) {
-    console.log('使用Gemini格式解析');
     return parsed.candidates[0].content.parts[0].text;
   }
   // Ollama格式
   else if (parsed.message?.content) {
-    console.log('使用Ollama格式解析');
     return parsed.message.content;
   }
   // 百度千帆格式
   else if (parsed.result) {
-    console.log('使用百度千帆格式解析');
     return parsed.result;
   }
   // 其他格式
   else if (parsed.output) {
-    console.log('使用output格式解析');
     return parsed.output;
   }
   else if (parsed.content) {
-    console.log('使用content格式解析');
     return parsed.content;
   }
   else if (parsed.text) {
-    console.log('使用text格式解析');
     return parsed.text;
   }
   
-  console.log('未找到可解析的内容格式');
   return '';
 };
 
 export const sendChatStream = async (options: ChatStreamOptions): Promise<void> => {
   const { messages, onUpdate, onComplete, onError, signal, modelConfig } = options;
 
+  // 处理消息列表，支持翻译提示词
+  let processedMessages = [...messages];
+  
+  // 检查最后一条用户消息是否需要处理翻译提示词
+  if (processedMessages.length > 0 && processedMessages[processedMessages.length - 1].role === 'user') {
+    const lastMessage = processedMessages[processedMessages.length - 1];
+    // 确保翻译提示词在消息开头（与translationService兼容）
+    if (typeof lastMessage.content === 'string') {
+      // 检查是否包含翻译提示词格式
+      const translationRegex = new RegExp(`^${TRANSLATION_PROMPT_PREFIX}[A-Z]+_TO_[A-Z]+:`);
+      if (translationRegex.test(lastMessage.content)) {
+        // 已正确格式化为翻译提示词在开头，不需要额外处理
+        // 这里保持原有逻辑，确保翻译功能正常工作
+        // 如果需要额外处理，可以在这里添加
+      } else if (lastMessage.content.includes('TRANSLATE_FROM_')) {
+        // 如果翻译提示词在消息中间，提取并移到合适位置
+        const lines = lastMessage.content.split('\n');
+        let promptLine = '';
+        let contentLines: string[] = [];
+        
+        // 分离提示词行和内容行
+        for (const line of lines) {
+          if (line.startsWith('TRANSLATE_FROM_')) {
+            promptLine = line;
+          } else {
+            contentLines.push(line);
+          }
+        }
+        
+        if (promptLine) {
+          // 更新最后一条消息为纯内容
+          processedMessages[processedMessages.length - 1] = {
+            ...lastMessage,
+            content: contentLines.join('\n').trim()
+          };
+          // 在系统消息中添加翻译提示词
+          processedMessages.unshift({
+            id: Date.now().toString(),
+            timestamp: Date.now(),
+            role: 'system',
+            content: promptLine
+          });
+        }
+      }
+    }
+  }
+
   let currentContent = '';
 
   // 特殊处理：如果是百度千帆API，先尝试流式请求，失败则回退到非流式
-  if (modelConfig.apiUrl.includes('qianfan.baidubce.com')) {
-    console.log('使用百度千帆API（尝试流式请求）');
-  }
 
   const sseHook = createSSEHook({
     onData: (data: string) => {
-      console.log('收到SSE数据:', data);
       try {
         // 检查是否是流式结束标记
         if (data.trim() === '[DONE]' || data.trim() === 'data: [DONE]') {
-          console.log('检测到流式结束标记');
           return;
         }
 
@@ -367,7 +389,6 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
         if (data.startsWith('data: ')) {
           cleanData = data.substring(6);
         }
-        console.log('清理后的数据:', cleanData);
 
         let content = '';
 
@@ -377,7 +398,6 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
         } else {
           // 使用默认解析逻辑
           const parsed = JSON.parse(cleanData);
-          console.log('解析响应数据:', parsed);
           
           // 特殊处理百度千帆API的流式响应
           if (modelConfig.apiUrl.includes('qianfan.baidubce.com')) {
@@ -385,7 +405,6 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
           } else {
             content = parseDefaultResponse(parsed);
           }
-          console.log('提取的内容:', content);
         }
 
         if (content) {
@@ -397,14 +416,13 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
           onUpdate(currentContent);
         }
       } catch (error) {
-        console.warn('解析SSE数据失败:', error, 'Data:', data);
-      }
+            // 静默处理解析错误
+          }
     },
     onCompleted: (error?: Error) => {
       if (error) {
         // 如果是百度千帆API且流式请求失败，尝试非流式请求
         if (modelConfig.apiUrl.includes('qianfan.baidubce.com') && error.message.includes('401')) {
-          console.log('百度千帆流式请求失败，尝试非流式请求');
           fallbackToNonStreaming();
         } else {
           onError(error);
@@ -414,18 +432,16 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       }
     },
     onAborted: () => {
-      console.log('Stream aborted');
     }
   });
 
   // 百度千帆API非流式请求回退函数
   const fallbackToNonStreaming = async () => {
     try {
-      console.log('使用百度千帆非流式请求');
       
       const requestBody = buildCustomRequestBody(
         modelConfig.customRequestConfig?.requestBodyTemplate || '{"model": "{{modelName}}", "messages": {{messages}}}',
-        messages,
+        processedMessages,
         modelConfig,
         modelConfig.apiKey
       );
@@ -450,9 +466,6 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
         });
       }
 
-      console.log('百度千帆非流式请求头:', headers);
-      console.log('百度千帆非流式请求体:', requestBody);
-
       const response = await ky.post(modelConfig.apiUrl, {
         json: requestBody,
         headers,
@@ -460,7 +473,6 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       });
 
       const data = await response.json() as any;
-      console.log('百度千帆非流式响应:', data);
 
       // 解析响应内容
       let content = '';
@@ -490,26 +502,26 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
 
     // 检查是否使用自定义请求配置
     if (modelConfig.customRequestConfig?.enabled && modelConfig.customRequestConfig.requestBodyTemplate) {
-      try {
-        requestBody = buildCustomRequestBody(
-          modelConfig.customRequestConfig.requestBodyTemplate,
-          messages,
-          modelConfig,
-          options.apiKey
-        );
-      } catch (error) {
-        onError(new Error(`自定义请求体构建失败: ${error}`));
-        return;
-      }
-    } else {
-      // 使用默认请求体构建逻辑
-      if (modelConfig.modelType === 'local') {
-        // Ollama格式 - 兼容更多模型的基础格式
-        requestBody = {
-          model: modelConfig.modelName || 'llama2',
-          messages,
-          stream: true
-        };
+        try {
+          requestBody = buildCustomRequestBody(
+            modelConfig.customRequestConfig.requestBodyTemplate,
+            processedMessages,
+            modelConfig,
+            options.apiKey
+          );
+        } catch (error) {
+          onError(new Error(`自定义请求体构建失败: ${error}`));
+          return;
+        }
+      } else {
+        // 使用默认请求体构建逻辑
+        if (modelConfig.modelType === 'local') {
+          // Ollama格式 - 兼容更多模型的基础格式
+          requestBody = {
+            model: modelConfig.modelName || 'llama2',
+            messages: processedMessages,
+            stream: true
+          };
         
         // 只添加有效的参数，避免某些模型不支持的参数
         if (modelConfig.temperature !== undefined && modelConfig.temperature !== null) {
@@ -521,7 +533,6 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
         
         // 特殊处理：deepseek-r1模型可能需要不同的参数格式
         if (modelConfig.modelName?.includes('deepseek-r1')) {
-          console.log('检测到deepseek-r1模型，使用特殊处理');
           // 移除可能导致问题的参数
           delete requestBody.temperature;
           delete requestBody.num_predict;
@@ -539,7 +550,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
         // 百度文心千帆格式（兼容OpenAI）
         requestBody = {
           model: modelConfig.modelName || 'ernie-4.0-turbo-8k',
-          messages: messages.map(msg => {
+          messages: processedMessages.map(msg => {
             // 百度千帆API需要特殊的多模态格式
             const processedContent = processMultimodalMessage(msg);
             return {
@@ -555,7 +566,6 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
         if (modelConfig.temperature !== undefined) {
           requestBody.temperature = modelConfig.temperature;
         }
-        console.log('百度千帆流式请求体:', JSON.stringify(requestBody, null, 2));
       } else {
         // 其他模型：OpenAI、Claude、Gemini
         requestBody = {
@@ -623,37 +633,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       }
     }
 
-    // ---- 调试信息 ----
-    console.log('=== 请求调试信息 ===');
-    console.log('Model Config:', {
-      modelType: modelConfig.modelType,
-      customRequestConfig: modelConfig.customRequestConfig,
-      apiUrl: modelConfig.apiUrl,
-      modelName: modelConfig.modelName
-    });
-    console.log('Endpoint:', options.endpoint);
-    console.log('API Key (masked):', options.apiKey ? `${options.apiKey.substring(0, 8)}...` : 'None');
-    console.log('Headers:', headers);
-    console.log('Request Body:', JSON.stringify(requestBody, null, 2));
-    console.log('Messages structure:', JSON.stringify(requestBody.messages, null, 2));
-    console.log('Stream enabled:', requestBody.stream);
-    
-    // 特殊调试：Ollama请求体验证
-    if (modelConfig.modelType === 'local') {
-      console.log('=== Ollama 调试信息 ===');
-      console.log('Model name:', requestBody.model);
-      console.log('Messages count:', requestBody.messages?.length);
-      console.log('First message:', requestBody.messages?.[0]);
-      console.log('Stream:', requestBody.stream);
-      console.log('Temperature:', requestBody.temperature);
-      console.log('Num predict:', requestBody.num_predict);
-      console.log('Model config temperature:', modelConfig.temperature);
-      console.log('Model config maxTokens:', modelConfig.maxTokens);
-      console.log('Full request body keys:', Object.keys(requestBody));
-      console.log('========================');
-    }
-    
-    console.log('==================');
+    // ---- 调试信息已移除 ----
 
     // ---- 发送请求 ----
     await ky.post(options.endpoint, {
@@ -670,15 +650,10 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       let message = '发送消息失败';
       if (error instanceof Error) {
         message = error.message;
-        console.error('请求失败详情:', error);
         
-        // 特殊处理Ollama错误
+        // 特殊处理Ollama错误 - 移除调试信息
         if (modelConfig.modelType === 'local') {
-          console.error('Ollama请求失败，请检查：');
-          console.error('1. Ollama服务是否正在运行');
-          console.error('2. 模型名称是否正确');
-          console.error('3. API端点是否正确');
-          console.error('4. 请求体格式是否正确');
+          // 错误信息保留，但移除console.error
         }
       }
       onError(new Error(message));

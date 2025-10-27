@@ -4,6 +4,7 @@ import ChatSidebar from '@/components/chat/ChatSidebar';
 import ChatContent from '@/components/chat/ChatContent';
 import ChatInput from '@/components/chat/ChatInput';
 import SettingsDialog from '@/components/chat/SettingsDialog';
+import TranslationModal from '@/components/features/TranslationModal';
 
 const ChatPage = () => {
   const {
@@ -25,6 +26,7 @@ const ChatPage = () => {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [translationOpen, setTranslationOpen] = useState(false);
 
   return (
     <div className="h-screen flex">
@@ -37,6 +39,7 @@ const ChatPage = () => {
           onNewConversation={createNewConversation}
           onDeleteConversation={deleteConversation}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenTranslation={() => setTranslationOpen(true)}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
@@ -68,6 +71,7 @@ const ChatPage = () => {
       </div>
 
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <TranslationModal open={translationOpen} onOpenChange={setTranslationOpen} />
     </div>
   );
 };
