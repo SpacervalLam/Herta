@@ -455,7 +455,7 @@ const TranslationModal: React.FC<TranslationModalProps> = ({ open, onOpenChange 
             )}
           </TabsContent>
 
-          <TabsContent value="history" className="p-6 flex-1">
+          <TabsContent value="history" className="p-6 flex flex-col flex-1">
             <div className="flex justify-between items-center mb-4 flex-col sm:flex-row gap-3">
               <h3 className="font-semibold text-base">{t('translation.recentTranslations')}</h3>
               {translationHistory.length > 0 && (
@@ -469,7 +469,7 @@ const TranslationModal: React.FC<TranslationModalProps> = ({ open, onOpenChange 
                 </Button>
               )}
             </div>
-            <ScrollArea className="flex-1 max-h-[400px] border rounded-md">
+            <ScrollArea className="flex-1 min-h-[350px] sm:min-h-[400px] border rounded-md">
               {translationHistory.length === 0 ? (
                 <div className="text-center py-10 text-muted-foreground">
                   {t('translation.noHistory')}
