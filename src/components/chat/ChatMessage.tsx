@@ -187,7 +187,7 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit, onDel
   };
 
   return (
-    <div className={cn('group flex gap-4 p-4 relative', isUser ? 'bg-background' : 'bg-muted/50')}>
+    <div className={cn('group flex gap-4 p-4 relative', isUser ? 'bg-background/80 backdrop-blur-sm' : 'bg-muted/50 backdrop-blur-sm')}>
       <Avatar className="h-8 w-8 shrink-0">
         <AvatarFallback className={cn(isUser ? 'bg-primary text-primary-foreground' : 'bg-secondary')}>
           {isUser ? <UserAvatarIcon /> : <Bot className="h-4 w-4" />}

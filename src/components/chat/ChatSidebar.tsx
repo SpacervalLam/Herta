@@ -54,8 +54,8 @@ const ChatSidebar = ({
 
   return (
     <div
-      className={cn(
-        "flex flex-col h-full border-r bg-muted/30 transition-all duration-300",
+        className={cn(
+         "flex flex-col h-full border-r bg-background/90 backdrop-blur-sm transition-all duration-300",
         collapsed ? "w-[60px]" : "w-full"
       )}
     >

@@ -168,7 +168,16 @@
     "enterSend": "Enter to send",
     "shiftEnterNewline": "Shift + Enter for newline",
     "selectModelToEdit": "Select a model to edit",
-    "orClickAddNewToAddNewModel": "or click \"Add New\" to add a new model"
+    "orClickAddNewToAddNewModel": "or click \"Add New\" to add a new model",
+    "background": "Background",
+    "backgroundImage": "Background Image",
+    "backgroundPreview": "Background Preview",
+    "uploadBackgroundImage": "Upload Background Image",
+    "supportedFormats": "Supports JPG, PNG, GIF formats",
+    "selectImage": "Select Image",
+    "backgroundOpacity": "Background Opacity",
+    "transparent": "Transparent",
+    "opaque": "Opaque"
   },
   "translation": {
     "title": "Translation",

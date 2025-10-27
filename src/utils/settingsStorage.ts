@@ -3,12 +3,16 @@
 export interface UserSettings {
   // 发送消息快捷键设置
   sendMessageKey: 'enter' | 'ctrl-enter';
+  // 背景设置
+  backgroundImage?: string; // 背景图片URL
+  backgroundOpacity: number; // 背景透明度 (0-1)
 }
 
 const SETTINGS_KEY = 'ai-chat-user-settings';
 
 const defaultSettings: UserSettings = {
   sendMessageKey: 'ctrl-enter', // 默认Ctrl+Enter发送
+  backgroundOpacity: 1, // 默认完全不透明
 };
 
 export const settingsStorage = {

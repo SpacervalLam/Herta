@@ -60,7 +60,7 @@ const ChatPage = () => {
         </div>
         
         {/* 输入框 - 固定在底部 */}
-        <div className="shrink-0 border-t bg-background">
+        <div className="shrink-0 border-t bg-background/80 backdrop-blur-sm">
           <ChatInput
             onSend={sendMessage}
             onStop={stopGeneration}

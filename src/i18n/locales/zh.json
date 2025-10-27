@@ -168,7 +168,16 @@
     "enterSend": "Enter 发送",
     "shiftEnterNewline": "Shift + Enter 换行",
     "selectModelToEdit": "选择一个模型进行编辑",
-    "orClickAddNewToAddNewModel": "或点击\"新增\"添加新模型"
+    "orClickAddNewToAddNewModel": "或点击\"新增\"添加新模型",
+    "background": "背景设置",
+    "backgroundImage": "背景图片",
+    "backgroundPreview": "背景预览",
+    "uploadBackgroundImage": "上传背景图片",
+    "supportedFormats": "支持 JPG、PNG、GIF 格式",
+    "selectImage": "选择图片",
+    "backgroundOpacity": "背景透明度",
+    "transparent": "透明",
+    "opaque": "不透明"
   },
   "translation": {
     "title": "翻译",

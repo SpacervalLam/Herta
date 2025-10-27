@@ -130,13 +130,13 @@ const ChatContent = ({
       </div>
       <div 
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto custom-scrollbar smooth-scroll"
+        className="flex-1 overflow-y-auto custom-scrollbar smooth-scroll bg-background/80 backdrop-blur-sm"
       >
         {conversation.messages.length === 0 ? (
           <div className="flex items-center justify-center min-h-full p-8">
             <div className="text-center space-y-4">
               <div className="text-5xl">👋</div>
-              <div className="text-lg font-medium">{t('chat.hello', { modelName: currentModelName })}</div> {/* 修改 */}
+              <div className="text-lg font-medium">{t('chat.hello', { modelName: currentModelName })}</div>
               <div className="text-muted-foreground max-w-md">
                 {t('chat.welcomeMessage')}
               </div>
