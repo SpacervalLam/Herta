@@ -22,6 +22,35 @@
     "warning": "警告",
     "info": "信息"
   },
+  "auth": {
+    "fillAllFields": "请填写所有字段",
+    "email": "邮箱",
+    "emailPlaceholder": "请输入您的邮箱",
+    "password": "密码",
+    "passwordPlaceholder": "请输入您的密码",
+    "loggingIn": "登录中...",
+    "login": "登录",
+    "welcomeBack": "欢迎回来",
+    "createAccount": "创建新账户",
+    "loginDesc": "登录您的账户以访问您的聊天记录",
+    "registerDesc": "创建账户以同步和保存您的聊天记录",
+    "noAccount": "还没有账户？立即注册",
+    "hasAccount": "已有账户？立即登录",
+    "name": "用户名",
+    "optional": "可选",
+    "namePlaceholder": "请输入您的用户名",
+    "confirmPassword": "确认密码",
+    "confirmPasswordPlaceholder": "请再次输入密码",
+    "passwordNotMatch": "两次输入的密码不一致",
+    "passwordTooShort": "密码长度至少为6个字符",
+    "registerTitle": "注册新账户",
+    "registering": "注册中...",
+    "register": "注册",
+    "userProfile": "用户资料",
+    "logout": "退出登录",
+    "confirmLogout": "确认退出登录",
+    "logoutDesc": "您需要重新登录才能继续使用服务"
+  },
   "chat": {
     "newChat": "新聊天",
     "startNewChat": "开始新对话",
@@ -51,6 +80,8 @@
     "deleteConversation": "删除对话",
     "deleteConversationDescription": "此操作将永久删除该对话及其所有消息。",
     "deleteConfirm": "确定要删除这个对话吗？",
+    "deleteMultipleConversations": "确定要删除选中的{{count}}个对话吗？",
+    "deleteMultipleConversationsDescription": "此操作不可撤销。所有选中的对话将被永久删除。",
     "exportConversation": "导出对话",
     "clearConversation": "清空对话",
     "model": "模型",
@@ -150,6 +181,8 @@
   "settings": {
     "title": "设置",
     "language": "语言",
+    "chinese": "中文",
+    "english": "English",
     "theme": "主题",
     "fontSize": "字体大小",
     "light": "浅色",
@@ -231,5 +264,19 @@
     "ollamaNotRunning": "Ollama服务未运行",
     "detectOllamaFailed": "检测Ollama模型失败",
     "unknownError": "未知错误"
+  },
+  "user": {
+    "userProfile": "用户资料",
+    "logout": "登出",
+    "confirmLogout": "确认登出",
+    "logoutDesc": "您需要重新登录才能继续使用服务",
+    "enterName": "输入您的用户名",
+    "unnamed": "未命名用户",
+    "avatarUrl": "头像 URL",
+    "uploadAvatar": "上传头像",
+    "save": "保存",
+    "cancel": "取消",
+    "editProfile": "编辑资料",
+    "accountCreated": "账户创建于"
   }
 }

@@ -72,6 +72,212 @@ pnpm preview
 
 ## 使用指南
 
+### 环境配置
+
+应用支持Supabase云数据库数据存储方式。可配置Supabase数据库以启用云同步功能。
+
+#### 环境变量配置
+
+1. 复制`.env.example`文件为`.env`：
+   ```bash
+   cp .env.example .env
+   ```
+
+2. 编辑`.env`文件，配置以下环境变量：
+   ```env
+   # Supabase配置
+   VITE_SUPABASE_URL="your-supabase-url"
+   VITE_SUPABASE_ANON_KEY="your-supabase-anon-key"
+   
+   # 数据库连接超时设置（毫秒）
+   VITE_SUPABASE_TIMEOUT=30000
+   
+   # 开发模式设置
+   VITE_DEV_MODE=true
+   
+   # 离线优先模式
+   VITE_OFFLINE_FIRST=true
+   ```
+
+#### Supabase数据库设置
+
+1. **创建Supabase项目**：
+   - 访问 [Supabase官网](https://supabase.com/) 并创建新的项目
+   - 获取项目的URL和匿名密钥（在项目设置 -> API 中）
+
+2. **创建数据库表结构**：
+   在Supabase SQL编辑器中执行以下SQL语句创建所需表结构：
+
+   ```sql
+   -- 创建users表
+   CREATE TABLE IF NOT EXISTS users (
+     id UUID PRIMARY KEY,
+     email VARCHAR(255) UNIQUE,
+     name VARCHAR(100),
+     avatar_url TEXT,
+     created_at TIMESTAMPTZ DEFAULT NOW(),
+     updated_at TIMESTAMPTZ DEFAULT NOW()
+   );
+   
+   CREATE INDEX idx_users_email ON users(email);
+
+   -- 创建conversations表
+   CREATE TABLE IF NOT EXISTS conversations (
+     id UUID PRIMARY KEY,
+     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+     title VARCHAR(255) NOT NULL,
+     created_at TIMESTAMPTZ NOT NULL,
+     updated_at TIMESTAMPTZ NOT NULL,
+     is_saved BOOLEAN DEFAULT true,
+     sync_version INTEGER DEFAULT 1,
+     last_accessed_at TIMESTAMPTZ DEFAULT NOW()
+   );
+   
+   CREATE INDEX idx_conversations_user_id ON conversations(user_id);
+   CREATE INDEX idx_conversations_last_accessed ON conversations(last_accessed_at);
+   CREATE INDEX idx_conversations_updated_at ON conversations(updated_at DESC);
+
+   -- 创建messages表
+   CREATE TABLE IF NOT EXISTS messages (
+     id UUID PRIMARY KEY,
+     conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
+     role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+     content TEXT NOT NULL,
+     timestamp TIMESTAMPTZ NOT NULL,
+     model_name VARCHAR(100),
+     model_id VARCHAR(100),
+     created_at TIMESTAMPTZ DEFAULT NOW(),
+     updated_at TIMESTAMPTZ DEFAULT NOW()
+   );
+   
+   CREATE INDEX idx_messages_conversation_id ON messages(conversation_id);
+   CREATE INDEX idx_messages_timestamp ON messages(timestamp);
+
+   -- 创建attachments表
+   CREATE TABLE IF NOT EXISTS attachments (
+     id UUID PRIMARY KEY,
+     message_id UUID REFERENCES messages(id) ON DELETE CASCADE,
+     type VARCHAR(20) NOT NULL CHECK (type IN ('image', 'audio', 'video')),
+     url TEXT NOT NULL,
+     file_name VARCHAR(255),
+     file_size INTEGER,
+     storage_key TEXT,
+     created_at TIMESTAMPTZ DEFAULT NOW()
+   );
+   
+   CREATE INDEX idx_attachments_message_id ON attachments(message_id);
+   ```
+
+3. **配置RLS策略**：
+   为确保数据安全，启用并配置行级安全策略：
+
+   ```sql
+   -- 启用RLS
+   ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE attachments ENABLE ROW LEVEL SECURITY;
+
+   -- 配置RLS策略
+   -- 允许用户访问自己的数据
+   CREATE POLICY "Users can access their own data" ON users
+     USING (auth.uid() = id);
+
+   -- 允许用户读取和写入自己的对话
+   CREATE POLICY "Users can manage their own conversations" ON conversations
+     USING (auth.uid() = user_id)
+     WITH CHECK (auth.uid() = user_id);
+
+   -- 允许用户读取和写入自己对话中的消息
+   CREATE POLICY "Users can manage messages in their conversations" ON messages
+     USING (conversation_id IN (SELECT id FROM conversations WHERE user_id = auth.uid()))
+     WITH CHECK (conversation_id IN (SELECT id FROM conversations WHERE user_id = auth.uid()));
+
+   -- 允许用户读取和写入自己消息中的附件
+   CREATE POLICY "Users can manage attachments in their messages" ON attachments
+     USING (message_id IN (SELECT id FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = auth.uid())))
+     WITH CHECK (message_id IN (SELECT id FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = auth.uid())));
+   ```
+
+4. **设置PostgreSQL函数**：
+   为支持数据同步冲突解决，添加以下函数：
+   
+   ```sql
+   -- 更新对话时自动更新updated_at
+   CREATE OR REPLACE FUNCTION update_updated_at_column()
+   RETURNS TRIGGER AS $$
+   BEGIN
+       NEW.updated_at = NOW();
+       RETURN NEW;
+   END;
+   $$ language 'plpgsql';
+   
+   -- 为conversations表添加触发器
+   CREATE TRIGGER update_conversations_updated_at 
+   BEFORE UPDATE ON conversations 
+   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+   
+   -- 为messages表添加触发器
+   CREATE TRIGGER update_messages_updated_at 
+   BEFORE UPDATE ON messages 
+   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+   ```
+
+4. **配置Supabase认证**：
+   - 在Supabase控制台中，启用Email认证
+   - 设置合适的站点URL
+
+### 数据迁移
+
+应用支持从本地存储到Supabase数据库的数据迁移功能：
+
+1. **登录后自动迁移**：登录Supabase账号后，系统会自动检测本地存储的数据并提示迁移
+2. **手动触发迁移**：可在设置中手动触发数据迁移
+3. **迁移内容**：包括所有对话、消息和附件
+4. **离线降级**：当Supabase连接不可用时，系统会自动降级到本地存储模式
+5. **数据转换**：迁移过程中会自动将前端数据类型转换为数据库兼容格式：
+   - 数字时间戳转换为TIMESTAMPTZ
+   - 消息附件数组转换为多条数据库记录
+   - UUID字符串直接映射到UUID字段
+
+### 数据同步策略
+
+应用采用高级数据同步策略，确保在各种网络条件下的数据一致性：
+
+1. **离线模式支持**：
+   - 未登录用户数据存储在localStorage
+   - 已登录用户离线时数据存储在IndexedDB
+   - 自动检测网络状态并切换存储模式
+
+2. **冲突检测与解决**：
+   - 网络恢复时自动检测并解决数据冲突
+   - 支持多种冲突解决策略：
+     - 本地优先（LOCAL_WINS）
+     - 服务器优先（SERVER_WINS）
+     - 使用最新版本（USE_LATEST）
+     - 消息合并（MERGE_MESSAGES）
+
+3. **同步优化**：
+   - 增量同步减少数据传输量
+   - 乐观更新提供流畅用户体验
+   - 自动重试失败的同步操作
+
+### Supabase配置验证
+
+完成配置后，可以通过以下步骤验证：
+
+1. 启动应用：`pnpm dev`
+2. 注册/登录Supabase账号
+3. 检查控制台日志中是否有Supabase连接成功的提示
+4. 创建新对话并发送包含不同类型内容（文本、附件）的消息
+5. 刷新页面，确认对话和消息已正确保存并可访问
+6. 测试离线功能：
+   - 断开网络连接
+   - 创建新对话和消息
+   - 重新连接网络
+   - 验证数据是否自动同步
+7. 在不同设备上登录，验证跨设备数据同步功能
+
 ### 模型配置
 
 1. 点击右上角设置图标打开模型配置面板

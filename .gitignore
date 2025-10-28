@@ -7,6 +7,19 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# 编译输出
+*.js
+*.css
+*.html
+
+# 环境变量文件
+.env
+.env.test
+.env.production
+
+# 数据库文件
+*.db
+
 ignore
 node_modules
 dist

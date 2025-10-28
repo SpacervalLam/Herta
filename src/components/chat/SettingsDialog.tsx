@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Moon, Sun, Monitor, Upload, Trash2 } from 'lucide-react';
+import { Moon, Sun, Monitor, Upload, Trash2, Languages } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -23,11 +23,12 @@ interface SettingsDialogProps {
 }
 
 const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { theme, setTheme } = useTheme();
   const [sendKey, setSendKey] = useState<'enter' | 'ctrl-enter'>('ctrl-enter');
   const [backgroundOpacity, setBackgroundOpacity] = useState<number>(1);
   const [previewImage, setPreviewImage] = useState<string>('');
+  const [currentLanguage, setCurrentLanguage] = useState(i18n.language);
   
   // 使用useState仅获取setBackgroundImage方法来更新设置
   const [, setBackgroundImage] = useState<string>('');
@@ -77,6 +78,12 @@ const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
     setBackgroundOpacity(value);
     settingsStorage.updateSettings({ backgroundOpacity: value });
   };
+  
+  const handleLanguageChange = (language: string) => {
+    setCurrentLanguage(language);
+    i18n.changeLanguage(language);
+    localStorage.setItem('language', language);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -89,8 +96,30 @@ const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {/* 语言设置 */}
           <div className="space-y-3">
-            <Label className="text-base font-semibold">{t('settings.theme')}</Label> {/* 修改 */}
+            <Label className="text-base font-semibold flex items-center gap-2">
+              <Languages className="h-4 w-4" />
+              {t('settings.language')}
+            </Label>
+            <RadioGroup value={currentLanguage} onValueChange={handleLanguageChange}>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="zh" id="zh" />
+                <Label htmlFor="zh" className="cursor-pointer">中文</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="en" id="en" />
+                <Label htmlFor="en" className="cursor-pointer">English</Label>
+              </div>
+            </RadioGroup>
+          </div>
+          
+          {/* 主题设置 */}
+          <div className="space-y-3">
+            <Label className="text-base font-semibold flex items-center gap-2">
+              <Monitor className="h-4 w-4" />
+              {t('settings.theme')}
+            </Label>
             <RadioGroup value={theme} onValueChange={setTheme}>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="light" id="light" />

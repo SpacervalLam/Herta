@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useChat } from '@/hooks/useChat';
 import ChatSidebar from '@/components/chat/ChatSidebar';
 import ChatContent from '@/components/chat/ChatContent';
 import ChatInput from '@/components/chat/ChatInput';
 import SettingsDialog from '@/components/chat/SettingsDialog';
 import TranslationModal from '@/components/features/TranslationModal';
+import UserMenu from '@/components/Auth/UserMenu';
 
 const ChatPage = () => {
   const {
@@ -15,6 +16,7 @@ const ChatPage = () => {
     setCurrentConversationId,
     createNewConversation,
     deleteConversation,
+    deleteConversations,
     updateConversationTitle,
     sendMessage,
     stopGeneration,
@@ -27,6 +29,34 @@ const ChatPage = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [translationOpen, setTranslationOpen] = useState(false);
+  // 跟踪多选模式状态
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  // 控制是否启用外部点击检测
+  const [isClickOutsideDetectionEnabled, setIsClickOutsideDetectionEnabled] = useState(true);
+
+  // 点击页面任何地方都能退出多选模式
+  useEffect(() => {
+    // 只有当启用了外部点击检测且处于多选模式时，才添加事件监听
+    if (isClickOutsideDetectionEnabled && isSelectionMode) {
+      const handleClickOutside = (event: MouseEvent) => {
+        // 检查点击目标是否不是侧边栏及其子元素
+        const sidebarElement = document.querySelector('.h-screen.flex > div:first-child');
+        if (sidebarElement && !sidebarElement.contains(event.target as Node)) {
+          // 退出多选模式
+          setIsSelectionMode(false);
+        }
+      };
+
+      // 添加全局点击事件监听
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        // 清理事件监听
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+    // 如果不满足条件，则不添加事件监听
+    return () => {};
+  }, [isSelectionMode, isClickOutsideDetectionEnabled]);
 
   return (
     <div className="h-screen flex">
@@ -38,15 +68,25 @@ const ChatPage = () => {
           onSelectConversation={setCurrentConversationId}
           onNewConversation={createNewConversation}
           onDeleteConversation={deleteConversation}
+          onDeleteConversations={deleteConversations}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenTranslation={() => setTranslationOpen(true)}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          // 传递多选模式状态和设置函数
+          isSelectionMode={isSelectionMode}
+          setIsSelectionMode={setIsSelectionMode}
+          // 传递控制外部点击检测的函数
+          setIsClickOutsideDetectionEnabled={setIsClickOutsideDetectionEnabled}
         />
       </div>
 
       {/* 主内容区 */}
       <div className="flex-1 flex flex-col min-w-0">
+        {/* 用户菜单 - 固定在右上角 */}
+        <div className="absolute top-4 right-4 z-20">
+          <UserMenu />
+        </div>
         {/* 聊天内容区域 - 可滚动 */}
         <div className="flex-1 overflow-hidden">
           <ChatContent

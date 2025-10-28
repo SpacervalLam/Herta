@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import ChatMessage from './ChatMessage';
 import ModelSelector from './ModelSelector';
 import ModelConfigDialog from './ModelConfigDialog';
-import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import type { Conversation } from '@/types/chat';
 import { getActiveModelId, getModelConfigs } from '@/utils/modelStorage';
 
@@ -122,17 +121,16 @@ const ChatContent = ({
             </>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mr-16">
           <ModelSelector key={modelKey} onModelChange={handleModelChange} />
           <ModelConfigDialog onModelChange={handleModelChange} />
-          <LanguageSwitcher />
         </div>
       </div>
       <div 
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto custom-scrollbar smooth-scroll bg-background/80 backdrop-blur-sm"
       >
-        {conversation.messages.length === 0 ? (
+        {(!conversation.messages || conversation.messages.length === 0) ? (
           <div className="flex items-center justify-center min-h-full p-8">
             <div className="text-center space-y-4">
               <div className="text-5xl">👋</div>
