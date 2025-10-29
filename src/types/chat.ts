@@ -20,10 +20,10 @@ export interface ChatMessage {
 export interface Conversation {
   id: string;
   title: string;
-  messages: ChatMessage[];
+  messages: ChatMessage[] | undefined;
   createdAt: number;
   updatedAt: number;
-  isSaved?: boolean; // 标记对话是否已保存到列表（用于延迟保存功能）
+  // 删除了isSaved字段，因为不再需要延迟保存功能
 }
 
 export interface ChatSettings {

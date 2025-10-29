@@ -64,6 +64,13 @@ const TranslationModal: React.FC<TranslationModalProps> = ({ open, onOpenChange 
   const [translationHistory, setTranslationHistory] = useState<TranslationHistoryItem[]>([]);
   const [copySuccess, setCopySuccess] = useState(false);
   const [debounceTimeout, setDebounceTimeout] = useState<number | null>(null);
+  const [activeModelName, setActiveModelName] = useState('');
+  
+  // 获取当前活动模型名称
+  useEffect(() => {
+    const activeModel = getActiveModel();
+    setActiveModelName(activeModel?.name || '未知模型');
+  }, []);
   // Removed unused textareaRef
   
   // History item functionality can be implemented here if needed in the future
@@ -393,6 +400,24 @@ const TranslationModal: React.FC<TranslationModalProps> = ({ open, onOpenChange 
                       <Languages className="h-4 w-4" />
                       <span className="text-sm font-semibold">{targetLang.displayName}</span>
                     </div>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={copyTranslatedText}
+                            disabled={!getCurrentTranslatedText().trim()}
+                            className="h-8 px-3 text-xs hover:bg-primary/5 transition-colors"
+                          >
+                            {t('translation.copy')}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{copySuccess ? t('translation.copied') : t('translation.copy')}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                 </div>
                 <CardContent className="p-0 flex-1 flex flex-col">
                   {error ? (
@@ -410,7 +435,7 @@ const TranslationModal: React.FC<TranslationModalProps> = ({ open, onOpenChange 
                   ) : (
                     <div className="relative flex-1 flex flex-col">
                       <Textarea
-                        placeholder={t('translation.translatedText')}
+                        placeholder={`${t('translation.translatedText')} ${t('translation.modelDependent')} ${activeModelName}`}
                         value={getCurrentTranslatedText()}
                         readOnly
                         className="flex-1 resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 px-4 py-4 text-sm placeholder:text-muted-foreground/60 bg-muted/5"
@@ -420,24 +445,6 @@ const TranslationModal: React.FC<TranslationModalProps> = ({ open, onOpenChange 
                   <div className="px-4 py-2 border-t text-xs text-muted-foreground bg-muted/10">
                     <div className="flex justify-between items-center">
                       <span>{getCurrentTranslatedText().length} {t('translation.characters')}</span>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={copyTranslatedText}
-                              disabled={!getCurrentTranslatedText().trim()}
-                              className="h-7 w-7 p-0 rounded-full"
-                            >
-                              <Copy className={`h-3.5 w-3.5 ${copySuccess ? 'text-green-500' : ''}`} />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{copySuccess ? t('translation.copied') : t('translation.copy')}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
                     </div>
                   </div>
                 </CardContent>

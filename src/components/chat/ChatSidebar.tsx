@@ -122,7 +122,6 @@ const ChatSidebar = ({
   }, [isSelectionMode, selectedConversationIds]);
 
   const filteredConversations = conversations.filter(conv =>
-    (conv.isSaved !== false) &&
     conv.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -482,6 +481,7 @@ const ChatSidebar = ({
                 setShowSingleDeleteConfirm(false);
                 setSingleDeleteId('');
               }}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
             >
               {t('common.delete')}
             </AlertDialogAction>
@@ -546,7 +546,8 @@ const ChatSidebar = ({
                     console.error('删除对话失败:', error);
                   }
                 })();
-              }}>
+              }}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
                 {t('common.delete')}
               </AlertDialogAction>
           </AlertDialogFooter>

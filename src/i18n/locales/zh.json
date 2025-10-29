@@ -255,7 +255,8 @@
     "autoDetect": "自动检测",
     "translationQuality": "翻译质量",
     "quickTranslate": "快速翻译",
-    "fullTranslation": "完整翻译"
+    "fullTranslation": "完整翻译",
+    "modelDependent": "取决于使用的模型，当前模型: "
   },
   "error": {
     "networkError": "网络错误，请检查您的网络连接",

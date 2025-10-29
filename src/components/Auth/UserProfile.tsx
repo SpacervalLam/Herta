@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
@@ -14,8 +14,11 @@ export const UserProfile: React.FC = () => {
   const [avatarUrl, setAvatarUrl] = useState(user?.user_metadata?.avatar_url || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadedAvatarUrl, setUploadedAvatarUrl] = useState<string>('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropzoneRootRef = useRef<HTMLElement>(null!);
 
   // 使用supabase上传功能
+  // 只有在用户存在时才初始化上传功能
   const { 
     files, 
     setFiles, 
@@ -24,7 +27,7 @@ export const UserProfile: React.FC = () => {
     isSuccess: uploadSuccess 
   } = useSupabaseUpload({
     bucketName: 'avatars',
-    path: `users/${user?.id}`,
+    path: user ? `users/${user.id}` : 'users/temp', // 提供默认路径防止undefined
     allowedMimeTypes: ['image/*'],
     maxFileSize: 5 * 1024 * 1024, // 5MB
     maxFiles: 1,
@@ -33,18 +36,18 @@ export const UserProfile: React.FC = () => {
 
   // 处理头像上传成功后的逻辑
   React.useEffect(() => {
-    if (uploadSuccess && files.length > 0) {
+    if (uploadSuccess && files.length > 0 && user) {
       // 生成Supabase CDN URL
       const fileUrl = supabase.storage
         .from('avatars')
-        .getPublicUrl(`users/${user?.id}/${files[0].name}`)
+        .getPublicUrl(`users/${user.id}/${files[0].name}`)
         .data?.publicUrl;
       
       if (fileUrl) {
         setUploadedAvatarUrl(fileUrl);
       }
     }
-  }, [uploadSuccess, files, user?.id]);
+  }, [uploadSuccess, files, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,7 +160,7 @@ export const UserProfile: React.FC = () => {
                   allowedMimeTypes: ['image/*'],
                   getRootProps: (props) => props,
                   getInputProps: (props) => props,
-                  inputRef: { current: null },
+                  inputRef,
                   isDragActive: false,
                   isDragAccept: false,
                   isDragReject: false,
@@ -175,7 +178,7 @@ export const UserProfile: React.FC = () => {
                   onDragOver: () => {},
                   onDragEnter: () => {},
                   onDragLeave: () => {},
-                  rootRef: React.useRef<HTMLElement>(null)
+                  rootRef: dropzoneRootRef
                 }}
                 className="border-2 border-gray-200 dark:border-gray-700 rounded-xl p-6 text-center bg-white dark:bg-gray-800 hover:border-primary/50 transition-all"
               >

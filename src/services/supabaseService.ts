@@ -132,7 +132,6 @@ export const conversationService = {
     title: string;
     createdAt: number | Date;
     updatedAt: number | Date;
-    isSaved?: boolean;
     userEmail?: string;
     userName?: string;
   }) => {
@@ -154,7 +153,6 @@ export const conversationService = {
         title: conversation.title,
         created_at: conversation.createdAt instanceof Date ? conversation.createdAt : new Date(conversation.createdAt),
         updated_at: conversation.updatedAt instanceof Date ? conversation.updatedAt : new Date(conversation.updatedAt),
-        is_saved: conversation.isSaved ?? true,
       })
       .select()
       .single();
@@ -170,7 +168,6 @@ export const conversationService = {
     updates: Partial<{
       title: string;
       updatedAt: number | Date;
-      isSaved: boolean;
       syncVersion: number;
       lastAccessedAt: number | Date;
     }>
@@ -180,7 +177,6 @@ export const conversationService = {
       .update({
         title: updates.title,
         updated_at: updates.updatedAt ? (updates.updatedAt instanceof Date ? updates.updatedAt : new Date(updates.updatedAt)) : undefined,
-        is_saved: updates.isSaved,
         sync_version: updates.syncVersion,
         last_accessed_at: updates.lastAccessedAt ? (updates.lastAccessedAt instanceof Date ? updates.lastAccessedAt : new Date(updates.lastAccessedAt)) : undefined,
       })

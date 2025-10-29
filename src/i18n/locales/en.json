@@ -255,6 +255,7 @@
     "characterCount": "Characters: {{count}}",
     "characters": "Characters",
     "translatedText": "Translated Text",
+    "modelDependent": "Depends on the model used, current model：",
     "source": "Source",
     "translation": "Translation",
     "emptyText": "Please enter text to translate",

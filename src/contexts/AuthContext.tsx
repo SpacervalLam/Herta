@@ -2,7 +2,6 @@ import React, { createContext, useContext, useCallback, ReactNode } from 'react'
 import { toast } from 'sonner';
 import { supabase } from '@/services/supabaseService';
 import type { User, Session } from '@supabase/supabase-js';
-import { useOfflineManager } from '@/hooks/useOfflineManager';
 
 interface AuthContextType {
   user: User | null;
@@ -34,16 +33,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = React.useState<User | null>(null);
   const [session, setSession] = React.useState<Session | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [hasMigrated, setHasMigrated] = React.useState(false);
-  const { migrateLocalStorageData } = useOfflineManager();
 
-  // 处理数据迁移
-  const handleDataMigration = async (userId: string) => {
+  // 确保用户资料在users表中存在
+  const ensureUserProfileExists = async (userId: string, email?: string, name?: string) => {
     try {
-      await migrateLocalStorageData(userId);
-      setHasMigrated(true);
+      // 检查用户是否已存在
+      const { data: existingUser, error: findError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', userId)
+        .single();
+
+      if (findError && findError.code !== 'PGRST116') { // PGRST116表示记录不存在
+        throw findError;
+      }
+
+      // 如果用户不存在，创建用户记录
+      if (!existingUser) {
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert({
+            id: userId,
+            email,
+            name: name || email?.split('@')[0],
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+
+        if (insertError) {
+          throw insertError;
+        }
+      }
     } catch (error) {
-      console.error('Data migration error:', error);
+      console.error('Failed to ensure user profile exists:', error);
     }
   };
 
@@ -55,9 +77,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setSession(data.session);
         setUser(data.session?.user || null);
         
-        // 自动迁移数据（首次登录时）
-        if (data.session?.user && !hasMigrated) {
-          await handleDataMigration(data.session.user.id);
+        // 确保用户资料在数据库中存在
+        if (data.session?.user) {
+          await ensureUserProfileExists(
+            data.session.user.id,
+            data.session.user.email,
+            data.session.user.user_metadata?.name
+          );
         }
       } catch (error) {
         console.error('Error checking user session:', error);
@@ -73,18 +99,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setSession(session);
       setUser(session?.user || null);
       
-      // 自动迁移数据（首次登录时）
-      if (session?.user && !hasMigrated) {
-        handleDataMigration(session.user.id);
-      } else if (!session) {
-        setHasMigrated(false); // 登出后重置迁移状态
+      // 确保用户资料在数据库中存在
+      if (session?.user) {
+        ensureUserProfileExists(
+          session.user.id,
+          session.user.email,
+          session.user.user_metadata?.name
+        );
       }
       
       setIsLoading(false);
     });
 
     return () => subscription.data.subscription.unsubscribe();
-  }, [hasMigrated, migrateLocalStorageData]);
+  }, []);
 
   // 登录功能
   const login = useCallback(async (email: string, password: string) => {
@@ -106,13 +134,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw error;
       }
 
-      // 登录成功后自动迁移数据
-      if (data?.session?.user && !hasMigrated) {
+      // 确保用户资料在数据库中存在
+      if (data?.session?.user) {
         try {
-          await handleDataMigration(data.session.user.id);
-        } catch (migrationError) {
-          console.error('数据迁移失败，但登录成功:', migrationError);
-          // 不抛出迁移错误，因为登录本身是成功的
+          await ensureUserProfileExists(
+            data.session.user.id,
+            data.session.user.email,
+            data.session.user.user_metadata?.name
+          );
+        } catch (profileError) {
+          console.error('创建用户资料失败，但登录成功:', profileError);
+          // 不抛出错误，因为登录本身是成功的
         }
       }
 
@@ -123,7 +155,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [hasMigrated]);
+  }, []);
 
   // 注册功能
   const register = useCallback(async (email: string, password: string, name?: string) => {
@@ -148,13 +180,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw error;
       }
 
-      // 注册成功后如果已自动登录，尝试迁移数据
-      if (data?.session?.user && !hasMigrated) {
+      // 确保用户资料在数据库中存在（如果已自动登录）
+      if (data?.session?.user) {
         try {
-          await handleDataMigration(data.session.user.id);
-        } catch (migrationError) {
-          console.error('数据迁移失败，但注册成功:', migrationError);
-          // 不抛出迁移错误，因为注册本身是成功的
+          await ensureUserProfileExists(
+            data.session.user.id,
+            data.session.user.email,
+            data.session.user.user_metadata?.name
+          );
+        } catch (profileError) {
+          console.error('创建用户资料失败，但注册成功:', profileError);
+          // 不抛出错误，因为注册本身是成功的
         }
       }
 
@@ -165,7 +201,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [hasMigrated]);
+  }, []);
 
   // 登出功能
   const logout = useCallback(async () => {
@@ -176,7 +212,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         toast.error(error.message);
         throw error;
       }
-      setHasMigrated(false); // 登出后重置迁移状态
+
       toast.success('已成功登出');
     } catch (error) {
       console.error('Logout error:', error);
@@ -188,39 +224,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // 更新用户资料
   const updateProfile = useCallback(async (data: { name?: string; avatar_url?: string }) => {
+    if (!user) {
+      throw new Error('用户未登录');
+    }
+    
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({
+      // 更新Supabase Auth用户信息
+      const { error: authError } = await supabase.auth.updateUser({
         data,
       });
 
-      if (error) {
-        toast.error(error.message);
-        throw error;
+      if (authError) {
+        toast.error(authError.message);
+        throw authError;
+      }
+
+      // 同时更新users表中的用户资料
+      const { error: dbError } = await supabase
+        .from('users')
+        .update({
+          name: data.name,
+          avatar_url: data.avatar_url,
+          updated_at: new Date()
+        })
+        .eq('id', user.id);
+
+      if (dbError) {
+        console.error('Failed to update user profile in database:', dbError);
+        // 这里不抛出错误，因为Auth更新已经成功
       }
 
       toast.success('个人资料已更新');
     } catch (error) {
       console.error('Update profile error:', error);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // 手动触发数据迁移
-  const migrateData = useCallback(async () => {
-    if (!user) {
-      throw new Error('用户未登录');
-    }
-
-    try {
-      setIsLoading(true);
-      await handleDataMigration(user.id);
-      toast.success('数据迁移成功！');
-    } catch (error) {
-      console.error('Manual data migration error:', error);
-      toast.error('数据迁移失败');
       throw error;
     } finally {
       setIsLoading(false);
@@ -236,7 +273,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     logout,
     updateProfile,
-    migrateData
+    migrateData: async () => {
+      toast.info('已不再需要数据迁移，所有数据直接保存到数据库');
+    }
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
