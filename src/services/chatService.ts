@@ -2,6 +2,7 @@ import ky, { type KyResponse, type AfterResponseHook, type NormalizedOptions } f
 import { createParser, type EventSourceParser } from 'eventsource-parser';
 import type { ChatMessage } from '@/types/chat';
 import type { ModelConfig, CustomRequestConfig } from '@/types/model';
+import { getModelConfig } from '@/utils/modelStorage';
 
 // 翻译提示词前缀标识 - 与translationService保持一致
 const TRANSLATION_PROMPT_PREFIX = 'TRANSLATE_FROM_';
@@ -135,6 +136,7 @@ export interface ChatStreamOptions {
   onComplete: () => void;
   onError: (error: Error) => void;
   signal?: AbortSignal;
+  userId?: string;
 }
 
 // 处理多模态消息内容
@@ -323,10 +325,25 @@ const parseDefaultResponse = (parsed: any): string => {
 };
 
 export const sendChatStream = async (options: ChatStreamOptions): Promise<void> => {
-  const { messages, onUpdate, onComplete, onError, signal, modelConfig } = options;
+  const { messages, onUpdate, onComplete, onError, signal, modelConfig, apiKey: providedApiKey, userId } = options;
 
   // 处理消息列表，支持翻译提示词
   let processedMessages = [...messages];
+  
+  // 如果没有提供API key，尝试从当前活动模型获取
+  let apiKey = providedApiKey;
+  if (!apiKey && modelConfig?.id && userId) {
+    try {
+      const activeModel = await getModelConfig(modelConfig.id, userId);
+      if (activeModel?.apiKey) {
+        apiKey = activeModel.apiKey;
+      }
+    } catch (error) {
+      console.error('获取模型API key失败:', error);
+    }
+  } else if (!apiKey && !userId) {
+    console.warn('无法获取API key：用户未登录');
+  }
   
   // 检查最后一条用户消息是否需要处理翻译提示词
   if (processedMessages.length > 0 && processedMessages[processedMessages.length - 1].role === 'user') {
@@ -443,7 +460,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
         modelConfig.customRequestConfig?.requestBodyTemplate || '{"model": "{{modelName}}", "messages": {{messages}}}',
         processedMessages,
         modelConfig,
-        modelConfig.apiKey
+        apiKey
       );
       
       // 移除stream参数
@@ -607,28 +624,28 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       // 替换API Key变量
       Object.keys(headers).forEach(key => {
         if (typeof headers[key] === 'string' && headers[key].includes('{{apiKey}}')) {
-          headers[key] = headers[key].replace('{{apiKey}}', options.apiKey || '');
+          headers[key] = headers[key].replace('{{apiKey}}', apiKey || '');
         }
       });
     } else if (modelConfig.customRequestConfig?.enabled && !modelConfig.customRequestConfig.headers) {
       // 如果启用了自定义请求配置但没有自定义请求头，使用默认逻辑
-      if (options.apiKey) {
-        headers['Authorization'] = `Bearer ${options.apiKey}`;
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
       }
     } else {
       // 使用默认请求头逻辑
-      if (options.apiKey) {
+      if (apiKey) {
         if (modelConfig.modelType === 'openai') {
-          headers['Authorization'] = `Bearer ${options.apiKey}`;
+          headers['Authorization'] = `Bearer ${apiKey}`;
         } else if (modelConfig.modelType === 'claude') {
-          headers['x-api-key'] = options.apiKey;
+          headers['x-api-key'] = apiKey;
           headers['anthropic-version'] = '2023-06-01';
         } else if (modelConfig.modelType === 'baidu') {
           // 百度千帆API使用特殊的认证格式
-          headers['Authorization'] = `Bearer ${options.apiKey}`;
+          headers['Authorization'] = `Bearer ${apiKey}`;
           headers['Content-Type'] = 'application/json';
         } else {
-          headers['Authorization'] = `Bearer ${options.apiKey}`;
+          headers['Authorization'] = `Bearer ${apiKey}`;
         }
       }
     }

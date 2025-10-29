@@ -7,9 +7,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { getEnabledModels, getActiveModelId, setActiveModel } from '@/utils/modelStorage';
+import { getEnabledModels, getActiveModelId, setActiveModelId } from '@/utils/modelStorage';
 import { ModelConfig } from '@/types/model';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ModelSelectorProps {
   onModelChange?: () => void;
@@ -17,28 +18,45 @@ interface ModelSelectorProps {
 
 export default function ModelSelector({ onModelChange }: ModelSelectorProps) {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [models, setModels] = useState<ModelConfig[]>([]);
-  const [activeModelId, setActiveModelId] = useState<string | null>(null);
+  const [currentActiveModelId, setCurrentActiveModelId] = useState<string | null>(null);
 
-  const loadModels = () => {
-    const enabledModels = getEnabledModels();
-    setModels(enabledModels);
-    const currentActiveId = getActiveModelId();
-    setActiveModelId(currentActiveId);
+  const loadModels = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const enabledModels = await getEnabledModels(user.id);
+      setModels(enabledModels);
+      const currentActiveId = await getActiveModelId(user.id);
+      setCurrentActiveModelId(currentActiveId);
+    } catch (error) {
+      console.error('Failed to load models:', error);
+    }
   };
 
   useEffect(() => {
     loadModels();
-  }, []);
+  }, [user?.id]);
 
-  const handleModelChange = (modelId: string) => {
-    setActiveModel(modelId);
-    setActiveModelId(modelId);
-    const model = models.find(m => m.id === modelId);
-    if (model) {
-      toast.success(t('model.switchTo', { name: model.name }));
+  const handleModelChange = async (modelId: string) => {
+    if (!user?.id) {
+      toast.error(t('error.notLoggedIn'));
+      return;
     }
-    onModelChange?.();
+    
+    try {
+      await setActiveModelId(modelId, user.id);
+      setCurrentActiveModelId(modelId);
+      const model = models.find(m => m.id === modelId);
+      if (model) {
+        toast.success(t('model.switchTo', { name: model.name }));
+      }
+      onModelChange?.();
+    } catch (error) {
+      console.error('Failed to switch model:', error);
+      toast.error(t('error.unknownError'));
+    }
   };
 
   if (models.length === 0) {
@@ -50,10 +68,10 @@ export default function ModelSelector({ onModelChange }: ModelSelectorProps) {
   }
 
   // 获取当前选中的模型对象
-  const activeModel = models.find(m => m.id === activeModelId);
+  const activeModel = models.find(m => m.id === currentActiveModelId);
 
   return (
-    <Select value={activeModelId || undefined} onValueChange={handleModelChange}>
+    <Select value={currentActiveModelId || undefined} onValueChange={handleModelChange}>
       <SelectTrigger className="w-[200px]">
         {/*只显示模型名称，不显示描述 */}
         <SelectValue placeholder={t('model.selectModel')}>

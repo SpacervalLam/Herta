@@ -26,7 +26,6 @@ CREATE TABLE conversations (
   title VARCHAR(255) NOT NULL,
   created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL,
-  is_saved BOOLEAN DEFAULT true,
   sync_version INTEGER DEFAULT 1,
   last_accessed_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -72,6 +71,37 @@ CREATE TABLE attachments (
 CREATE INDEX idx_attachments_message_id ON attachments(message_id);
 ```
 
+### 5. 模型配置表 (model_configs)
+
+```sql
+CREATE TABLE model_configs (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  model_type VARCHAR(50) NOT NULL, -- openai, claude, gemini, baidu, local, custom
+  api_url TEXT,
+  api_key TEXT, -- 存储加密的API密钥
+  model_name VARCHAR(255),
+  description TEXT,
+  max_tokens INTEGER,
+  temperature FLOAT,
+  enabled BOOLEAN DEFAULT true,
+  is_active BOOLEAN DEFAULT false,
+  supports_multimodal BOOLEAN DEFAULT false,
+  custom_request_config JSONB, -- 存储自定义请求配置
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_model_configs_user_id ON model_configs(user_id);
+CREATE INDEX idx_model_configs_active ON model_configs(user_id, is_active);
+
+-- 确保每个用户只有一个活动模型
+CREATE UNIQUE INDEX idx_model_configs_one_active_per_user
+ON model_configs(user_id)
+WHERE is_active = true;
+```
+
 ## 数据迁移映射
 
 ### 从前端应用到数据库的映射关系
@@ -82,7 +112,6 @@ CREATE INDEX idx_attachments_message_id ON attachments(message_id);
 | conversation.title | conversations | title | 字符串 |
 | conversation.createdAt | conversations | created_at | 数字时间戳转换为TIMESTAMPTZ |
 | conversation.updatedAt | conversations | updated_at | 数字时间戳转换为TIMESTAMPTZ |
-| conversation.isSaved | conversations | is_saved | 布尔值 |
 | message.id | messages | id | UUID字符串 |
 | message.role | messages | role | 字符串 |
 | message.content | messages | content | 字符串 |
@@ -94,21 +123,19 @@ CREATE INDEX idx_attachments_message_id ON attachments(message_id);
 | attachment.url | attachments | url | 字符串 (可以是base64或远程URL) |
 | attachment.fileName | attachments | file_name | 字符串 |
 | attachment.fileSize | attachments | file_size | 数字 |
+| modelConfig.id | model_configs | id | UUID字符串 |
+| modelConfig.name | model_configs | name | 字符串 |
+| modelConfig.modelType | model_configs | model_type | 字符串 |
+| modelConfig.apiUrl | model_configs | api_url | 字符串 |
+| modelConfig.apiKey | model_configs | api_key | 加密存储的API密钥 |
+| modelConfig.modelName | model_configs | model_name | 字符串 |
+| modelConfig.description | model_configs | description | 字符串 |
+| modelConfig.maxTokens | model_configs | max_tokens | 数字 |
+| modelConfig.temperature | model_configs | temperature | 浮点数 |
+| modelConfig.enabled | model_configs | enabled | 布尔值 |
+| modelConfig.supportsMultimodal | model_configs | supports_multimodal | 布尔值 |
+| modelConfig.customRequestConfig | model_configs | custom_request_config | JSON对象 |
+| modelConfig.createdAt | model_configs | created_at | 数字时间戳转换为TIMESTAMPTZ |
+| modelConfig.updatedAt | model_configs | updated_at | 数字时间戳转换为TIMESTAMPTZ |
 
-## 数据同步策略
 
-### 离线模式支持
-
-1. **本地存储**：未登录用户数据存储在localStorage
-2. **离线缓存**：已登录用户离线时数据存储在IndexedDB
-3. **冲突检测**：网络恢复时自动检测并解决数据冲突
-4. **同步优先级**：
-   - 默认使用较新版本的数据
-   - 消息采用合并策略，保留所有唯一消息
-
-### 冲突解决策略
-
-1. **LOCAL_WINS**：使用本地版本覆盖服务器版本
-2. **SERVER_WINS**：使用服务器版本覆盖本地版本
-3. **USE_LATEST**：使用更新时间较新的版本
-4. **MERGE_MESSAGES**：合并消息列表，保留所有唯一消息并按时间排序

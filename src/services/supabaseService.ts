@@ -354,6 +354,155 @@ export const attachmentService = {
   },
 };
 
+// API Key相关的数据库操作
+export const apiKeyService = {
+  // 获取用户的所有API Key配置
+  getModelConfigs: async (userId: string) => {
+    const { data, error } = await supabase
+      .from('model_configs')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return data;
+  },
+
+  // 获取单个API Key配置
+  getModelConfig: async (modelId: string, userId: string) => {
+    const { data, error } = await supabase
+      .from('model_configs')
+      .select('*')
+      .eq('id', modelId)
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      throw error;
+    }
+    return data;
+  },
+
+  // 创建或更新API Key配置
+  saveModelConfig: async (config: any, userId: string) => {
+    // 检查是否已存在
+    const existingConfig = await apiKeyService.getModelConfig(config.id, userId);
+    
+    if (existingConfig) {
+      // 更新现有配置
+      const { data, error } = await supabase
+        .from('model_configs')
+        .update({
+          name: config.name,
+          model_type: config.modelType,
+          api_url: config.apiUrl,
+          api_key: config.apiKey,
+          model_name: config.modelName,
+          description: config.description,
+          max_tokens: config.maxTokens,
+          temperature: config.temperature,
+          enabled: config.enabled,
+          updated_at: new Date(),
+          supports_multimodal: config.supportsMultimodal,
+          custom_request_config: config.customRequestConfig,
+        })
+        .eq('id', config.id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } else {
+      // 创建新配置
+      const { data, error } = await supabase
+        .from('model_configs')
+        .insert({
+          id: config.id,
+          user_id: userId,
+          name: config.name,
+          model_type: config.modelType,
+          api_url: config.apiUrl,
+          api_key: config.apiKey,
+          model_name: config.modelName,
+          description: config.description,
+          max_tokens: config.maxTokens,
+          temperature: config.temperature,
+          enabled: config.enabled,
+          created_at: new Date(config.createdAt || Date.now()),
+          updated_at: new Date(),
+          supports_multimodal: config.supportsMultimodal,
+          custom_request_config: config.customRequestConfig,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    }
+  },
+
+  // 删除API Key配置
+  deleteModelConfig: async (modelId: string, userId: string) => {
+    const { error } = await supabase
+      .from('model_configs')
+      .delete()
+      .eq('id', modelId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+  },
+
+  // 设置活动模型
+  setActiveModel: async (modelId: string, userId: string) => {
+    // 先更新所有模型为非活动状态
+    await supabase
+      .from('model_configs')
+      .update({ is_active: false })
+      .eq('user_id', userId);
+
+    // 设置指定模型为活动状态
+    const { data, error } = await supabase
+      .from('model_configs')
+      .update({ is_active: true })
+      .eq('id', modelId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // 获取活动模型
+  getActiveModel: async (userId: string) => {
+    const { data, error } = await supabase
+      .from('model_configs')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      throw error;
+    }
+    return data;
+  },
+
+  // 获取活动模型ID
+  getActiveModelId: async (userId: string) => {
+    const activeModel = await apiKeyService.getActiveModel(userId);
+    return activeModel?.id || null;
+  },
+
+  // 历史数据迁移功能已移除 - 现在仅使用Supabase数据库存储API密钥
+};
+
 // 文件上传服务
 export const storageService = {
   // 上传文件到Supabase Storage

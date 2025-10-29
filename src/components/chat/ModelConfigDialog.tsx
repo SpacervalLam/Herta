@@ -24,11 +24,11 @@ import { Settings, Plus, Trash2, Save, Server, RefreshCw, ChevronDown, ChevronRi
 import { toast } from 'sonner';
 import {
   getModelConfigs,
-  addModelConfig,
-  updateModelConfig,
+  saveModelConfig,
   deleteModelConfig,
   getActiveModelId,
-  setActiveModel
+  setActiveModelId,
+  addModelConfig
 } from '@/utils/modelStorage';
 import { ModelConfig, MODEL_PRESETS, DEFAULT_MODEL_CONFIG } from '@/types/model';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -37,12 +37,14 @@ import {
   getOllamaModels
 } from '@/services/ollamaService';
 import { Card } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ModelConfigDialogProps {
   onModelChange?: () => void;
 }
 
 export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogProps) {
+  const { user } = useAuth();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [models, setModels] = useState<ModelConfig[]>([]);
@@ -56,12 +58,18 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
     if (open) loadModels();
   }, [open]);
 
-  const loadModels = () => {
-    const configs = getModelConfigs();
-    setModels(configs);
-    const activeId = getActiveModelId();
-    if (activeId && configs.find(m => m.id === activeId)) {
-      setSelectedModelId(activeId);
+  const loadModels = async () => {
+    try {
+      if (!user?.id) return;
+      
+      const configs = await getModelConfigs(user.id);
+      setModels(configs);
+      const activeId = await getActiveModelId(user.id);
+      if (activeId && configs.find(m => m.id === activeId)) {
+        setSelectedModelId(activeId);
+      }
+    } catch (error) {
+      console.error('Failed to load models:', error);
     }
   };
 
@@ -92,41 +100,64 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editingModel || !editingModel.name || !editingModel.apiUrl) {
       toast.error(t('model.requiredFields'));
       return;
     }
 
     try {
+      if (!user?.id) {
+        toast.error(t('error.notLoggedIn'));
+        return;
+      }
+      
       if (isNewModel) {
-        const newModel = addModelConfig(editingModel as Omit<ModelConfig, 'id' | 'createdAt' | 'updatedAt'>);
+        // 使用addModelConfig创建新模型，它返回带有id的完整ModelConfig
+        const newModel = await addModelConfig(editingModel as Omit<ModelConfig, 'id' | 'createdAt' | 'updatedAt'>, user.id);
         toast.success(t('model.saveSuccess'));
-        setActiveModel(newModel.id);
+        await setActiveModelId(newModel.id, user.id);
       } else if (selectedModelId) {
-        updateModelConfig(selectedModelId, editingModel);
+        // 确保编辑的模型包含所有必需字段
+        await saveModelConfig({
+          ...editingModel,
+          id: selectedModelId,
+          createdAt: editingModel.createdAt || Date.now(),
+          updatedAt: Date.now()
+        } as ModelConfig, user.id);
         toast.success(t('model.saveSuccess'));
       }
 
-      loadModels();
+      await loadModels();
       setEditingModel(null);
       setIsNewModel(false);
       onModelChange?.();
-    } catch {
+    } catch (error) {
+      console.error('Failed to save model:', error);
       toast.error(t('error.unknownError'));
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm(t('model.deleteConfirm'))) {
-      deleteModelConfig(id);
-      toast.success(t('model.deleteSuccess'));
-      loadModels();
-      if (selectedModelId === id) {
-        setSelectedModelId(null);
-        setEditingModel(null);
+      try {
+        if (!user?.id) {
+          toast.error(t('error.notLoggedIn'));
+          return;
+        }
+        
+        await deleteModelConfig(id, user.id);
+        toast.success(t('model.deleteSuccess'));
+        await loadModels();
+        if (selectedModelId === id) {
+          setSelectedModelId(null);
+          setEditingModel(null);
+        }
+        onModelChange?.();
+      } catch (error) {
+        console.error('Failed to delete model:', error);
+        toast.error(t('error.unknownError'));
       }
-      onModelChange?.();
     }
   };
 
@@ -136,10 +167,21 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
     setIsNewModel(false);
   };
 
-  const handleSetActive = (id: string) => {
-    setActiveModel(id);
-    toast.success(t('model.switchSuccess'));
-    onModelChange?.();
+  const handleSetActive = async (id: string) => {
+    try {
+      if (!user?.id) {
+        toast.error(t('error.notLoggedIn'));
+        return;
+      }
+      
+      await setActiveModelId(id, user.id);
+      setSelectedModelId(id);
+      toast.success(t('model.switchSuccess'));
+      onModelChange?.();
+    } catch (error) {
+      console.error('Failed to set active model:', error);
+      toast.error(t('error.unknownError'));
+    }
   };
 
   const detectOllamaModels = async () => {
@@ -148,13 +190,19 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
       const serviceStatus = await getOllamaServiceStatus();
       if (serviceStatus.isAvailable) {
         const installedModels = await getOllamaModels();
-        const existingModels = getModelConfigs();
-        const existingOllamaModels = existingModels.filter(m =>
+          // 获取现有模型
+        if (!user?.id) {
+          toast.error(t('error.notLoggedIn'));
+          return;
+        }
+        
+        const existingModels = await getModelConfigs(user.id);
+        const existingOllamaModels = existingModels.filter((m: ModelConfig) =>
           m.modelType === 'local' && m.apiUrl.includes('localhost:11434')
         );
         let addedCount = 0;
         for (const ollamaModel of installedModels) {
-          const isAlreadyConfigured = existingOllamaModels.some(m => m.modelName === ollamaModel.name);
+          const isAlreadyConfigured = existingOllamaModels.some((m: ModelConfig) => m.modelName === ollamaModel.name);
           if (!isAlreadyConfigured) {
             const newModel: Omit<ModelConfig, 'id' | 'createdAt' | 'updatedAt'> = {
               name: `Ollama - ${ollamaModel.name}`,
@@ -166,7 +214,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
               temperature: 0.7,
               enabled: true
             };
-            addModelConfig(newModel);
+            await addModelConfig(newModel, user.id);
             addedCount++;
           }
         }
@@ -229,8 +277,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
             <ScrollArea className="flex-1 p-3">
               {models.length ? (
                 <div className="space-y-2">
-                  {models.map(model => {
-                    const isActive = getActiveModelId() === model.id;
+                  {models.map((model: ModelConfig) => {
                     const isSelected = selectedModelId === model.id;
                     return (
                       <div
@@ -247,7 +294,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                             <div className="text-xs text-muted-foreground mt-1">
                               {model.modelType}
                             </div>
-                            {isActive && (
+                            {selectedModelId === model.id && (
                               <div className="text-xs text-primary mt-1 font-medium">{t('model.currentModel')}</div>
                             )}
                           </div>
@@ -536,7 +583,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                                   }
                                 }}
                                 placeholder={`{
-  "Authorization": "Bearer {{apiKey}}",
+  "Authorization": "{{apiKey}}",
   "Content-Type": "application/json"
 }`}
                                 rows={4}

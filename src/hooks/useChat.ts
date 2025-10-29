@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { sendChatStream } from '@/services/chatService';
-import { getActiveModel } from '@/utils/modelStorage';
+import { getActiveModelWithApiKey } from '@/utils/modelStorage';
 import type { Conversation, ChatMessage } from '@/types/chat';
+import type { ModelConfig } from '@/types/model';
 import { MediaAttachment } from '@/types/chat';
 import { useAuth } from '@/contexts/AuthContext';
 import { conversationService, messageService, attachmentService } from '@/services/supabaseService';
@@ -265,7 +266,10 @@ export const useChat = () => {
 
   // AI自动生成对话标题
   const generateConversationTitle = useCallback(async (conversationId: string, firstMessage: string) => {
-    const activeModel = getActiveModel();
+    let activeModel = null;
+    if (user?.id) {
+      activeModel = await getActiveModelWithApiKey(user.id);
+    }
     if (!activeModel) return;
 
     try {
@@ -285,6 +289,7 @@ export const useChat = () => {
         apiKey: activeModel.apiKey,
         modelConfig: activeModel,
         messages: [{ id: 'temp', role: 'user', content: titlePrompt, timestamp: Date.now() }],
+        userId: user?.id,
         onUpdate: (content: string) => {
           // 累积流式内容
           generatedTitle = content.trim();
@@ -339,138 +344,94 @@ export const useChat = () => {
   const sendMessage = useCallback(async (content: string, attachments?: MediaAttachment[]) => {
     if ((!content.trim() && !attachments?.length) || isLoading) return;
 
-    // 获取当前激活的模型配置
-    const activeModel = getActiveModel();
-    if (!activeModel) {
-      toast.error('请先配置AI模型', {
-        description: '点击顶部模型选择器旁的设置图标进行配置'
-      });
-      return;
-    }
-
-    // 检查模型是否支持多模态
-    if (attachments?.length && (!activeModel.supportsMultimodal)) {
-      toast.error('当前模型不支持多模态输入', {
-        description: '请切换到支持图片等媒体的模型'
-      });
-      return;
-    }
-
-    let conversation = currentConversation;
-    if (!conversation) {
-      conversation = await createNewConversation();
-    }
-
-    const isFirstMessage = !conversation.messages || conversation.messages.length === 0;
-    const timestamp = Date.now();
-    const userMessageId = `msg-${timestamp}`;
-    
-    const userMessage: ChatMessage = {
-      id: userMessageId,
-      role: 'user',
-      content: content.trim(),
-      timestamp: timestamp,
-      attachments: attachments // 添加附件
-    };
-
-    // 创建assistant消息，记录当前使用的模型信息
-    const assistantMessageId = `msg-${timestamp + 1}`;
-    const assistantMessage: ChatMessage = {
-      id: assistantMessageId,
-      role: 'assistant',
-      content: '',
-      timestamp: timestamp,
-      modelName: activeModel.name, // 记录模型名称
-      modelId: activeModel.id // 记录模型ID
-    };
-
-    // 添加用户消息和空的AI助手消息
-    setConversations(prev =>
-      prev.map(c =>
-        c.id === conversation!.id
-          ? { ...c, messages: [...(c.messages || []), userMessage, assistantMessage], updatedAt: timestamp }
-          : c
-      )
-    );
-
-    // 已登录用户：保存用户消息到数据库
-    if (user) {
-      try {
-        const savedMessage = await messageService.createMessage({
-          conversationId: conversation.id,
-          role: 'user',
-          content: content.trim(),
-          timestamp: new Date(timestamp)
-        });
-        
-        // 更新本地消息ID为数据库ID
-        if (savedMessage) {
-            setConversations(prev =>
-              prev.map(c =>
-                c.id === conversation.id
-                  ? {
-                      ...c,
-                      messages: (c.messages || []).map(m =>
-                        m.id === userMessageId
-                          ? { ...m, id: savedMessage.id }
-                          : m
-                      )
-                    }
-                  : c
-              )
-            );
-            
-            // 保存附件
-            if (attachments) {
-              for (const attachment of attachments) {
-                await attachmentService.createAttachment({
-                  messageId: savedMessage.id,
-                  type: attachment.type,
-                  url: attachment.url,
-                  fileName: attachment.fileName,
-                  fileSize: attachment.fileSize
-                });
-              }
-            }
-          }
-          
-        // 如果是首次消息，标记对话为已保存
-        if (isFirstMessage) {
-            await conversationService.updateConversation(conversation.id, user.id, {
-              updatedAt: new Date(timestamp)
-            });
-          } else {
-            // 更新对话的updatedAt
-            await conversationService.updateConversation(conversation.id, user.id, {
-              updatedAt: new Date(timestamp)
-            });
-          }
-        } catch (dbError) {
-          console.error('Failed to save user message to database:', dbError);
-        }
-      }
-
-    // 首次消息的标题生成将在AI回复完成后进行
-
-    setIsLoading(true);
-    abortControllerRef.current = new AbortController();
+    let activeModel: ModelConfig | null = null;
+    let conversation: Conversation | null = null;
+    let isFirstMessage: boolean = false;
+    let timestamp: number = 0;
+    let userMessageId: string = '';
+    let userMessage: ChatMessage = { id: '', role: 'user', content: '', timestamp: 0 };
+    let assistantMessageId: string = '';
+    let assistantMessage: ChatMessage = { id: '', role: 'assistant', content: '', timestamp: 0 };
 
     try {
+      // 获取当前激活的模型配置
+      activeModel = user?.id ? await getActiveModelWithApiKey(user.id) : null;
+      if (!activeModel) {
+        toast.error('请先配置AI模型', {
+          description: '点击顶部模型选择器旁的设置图标进行配置'
+        });
+        return;
+      }
+
+      // 检查模型是否支持多模态
+      if (attachments?.length && (!activeModel.supportsMultimodal)) {
+        toast.error('当前模型不支持多模态输入', {
+          description: '请切换到支持图片等媒体的模型'
+        });
+        return;
+      }
+
+      conversation = currentConversation || null;
+      if (!conversation) {
+        conversation = await createNewConversation();
+      }
+
+      isFirstMessage = !conversation.messages || conversation.messages.length === 0;
+      timestamp = Date.now();
+      userMessageId = `msg-${timestamp}`;
+      
+      userMessage = {
+        id: userMessageId,
+        role: 'user' as const,
+        content: content.trim(),
+        timestamp: timestamp,
+        attachments: attachments
+      };
+
+      // 创建assistant消息，记录当前使用的模型信息
+      assistantMessageId = `msg-${timestamp + 1}`;
+      assistantMessage = {
+        id: assistantMessageId,
+        role: 'assistant' as const,
+        content: '',
+        timestamp: timestamp,
+        modelName: activeModel.name,
+        modelId: activeModel.id
+      };
+
+      // 添加用户消息和空的AI助手消息
+      setConversations(prev =>
+        prev.map(c =>
+          c.id === conversation!.id
+            ? {
+                ...c,
+                messages: [...(c.messages || []), userMessage, assistantMessage],
+                updatedAt: timestamp
+              }
+            : c
+        )
+      );
+
+      setIsLoading(true);
+      abortControllerRef.current = new AbortController();
+
+      // 使用原有的sendChatStream函数
       await sendChatStream({
         endpoint: activeModel.apiUrl,
         apiKey: activeModel.apiKey,
         modelConfig: activeModel,
-        messages: [...(conversation.messages || []), userMessage],
+        messages: [...(conversation?.messages || []), userMessage],
+        userId: user?.id,
         onUpdate: (content: string) => {
           setConversations(prev =>
             prev.map(c =>
               c.id === conversation!.id
                 ? {
-                  ...c,
-                  messages: (c.messages || []).map(m =>
-                    m.id === assistantMessage.id ? { ...m, content } : m
-                  )
-                }
+                    ...c,
+                    messages: (c.messages || []).map(m =>
+                      m.id === assistantMessage.id ? { ...m, content } : m
+                    )
+                  }
                 : c
             )
           );
@@ -480,65 +441,10 @@ export const useChat = () => {
           abortControllerRef.current = null;
 
           if (isFirstMessage) {
-
             // AI回复完成后生成对话标题
-            generateConversationTitle(conversation.id, content.trim());
-          }
-          
-          // 已登录用户：保存AI回复到数据库并更新对话
-          if (user) {
-            // 使用setConversations的函数形式获取最新状态，并保存AI回复
-            setConversations(prev => {
-              const targetConversation = prev.find(c => c.id === conversation.id);
-              const targetAssistantMessage = targetConversation?.messages?.find(
-                m => m.id === assistantMessage.id
-              );
-              
-              if (targetAssistantMessage) {
-                // 异步保存到数据库，但不阻塞UI更新
-                (async () => {
-                  try {
-                    // 保存AI回复消息
-                    const savedMessage = await messageService.createMessage({
-                      conversationId: conversation.id,
-                      role: 'assistant',
-                      content: targetAssistantMessage.content || '',
-                      timestamp: new Date(assistantMessage.timestamp),
-                      modelName: activeModel.name,
-                      modelId: activeModel.id
-                    });
-                    
-                    // 更新对话的更新时间戳
-                    await conversationService.updateConversation(conversation.id, user.id, {
-                      updatedAt: new Date(assistantMessage.timestamp)
-                    });
-                    
-                    // 更新本地消息ID为数据库ID
-                    if (savedMessage) {
-                      setConversations(innerPrev =>
-                        innerPrev.map(c =>
-                          c.id === conversation.id
-                            ? {
-                                ...c,
-                                messages: (c.messages || []).map(m =>
-                                  m.id === assistantMessage.id
-                                    ? { ...m, id: savedMessage.id }
-                                    : m
-                                )
-                              }
-                            : c
-                        )
-                      );
-                    }
-                  } catch (dbError) {
-                    console.error('Failed to save AI message to database:', dbError);
-                  }
-                })();
-              }
-              
-              // 返回当前状态，不做UI更新（因为我们只是要获取最新内容用于保存）
-              return prev;
-            });
+            if (conversation) {
+              generateConversationTitle(conversation.id, content.trim());
+            }
           }
         },
         onError: (error: Error) => {
@@ -547,23 +453,23 @@ export const useChat = () => {
           toast.error('发送消息失败', {
             description: error.message || '请检查模型配置或稍后重试'
           });
-          setConversations(prev =>
-            prev.map(c =>
-              c.id === conversation!.id
-                ? {
-                  ...c,
-                  messages: (c.messages || []).filter(m => m.id !== assistantMessage.id)
-                }
-                : c
-            )
-          );
         },
         signal: abortControllerRef.current.signal
       });
+
     } catch (error) {
       console.error('Send message error:', error);
+      toast.error('获取模型配置或发送消息失败', {
+        description: '请检查模型配置或稍后重试'
+      });
+    } finally {
+      // 确保无论如何都重置loading状态
+      if (!abortControllerRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [currentConversation, isLoading, createNewConversation, generateConversationTitle]);
+
 
   const stopGeneration = useCallback(() => {
     if (abortControllerRef.current) {
@@ -607,7 +513,7 @@ export const useChat = () => {
     const userMessageIndex = messageIndex - 1;
     if (userMessageIndex < 0 || !currentConversation.messages || currentConversation.messages[userMessageIndex].role !== 'user') return;
 
-    const activeModel = getActiveModel();
+    const activeModel = user?.id ? await getActiveModelWithApiKey(user.id) : null;
     if (!activeModel) {
       toast.error('请先配置AI模型');
       return;
@@ -651,6 +557,7 @@ export const useChat = () => {
         apiKey: activeModel.apiKey,
         modelConfig: activeModel,
         messages: messagesBefore,
+        userId: user?.id,
         onUpdate: (content: string) => {
           setConversations(prev =>
             prev.map(c =>
@@ -878,7 +785,7 @@ export const useChat = () => {
     setIsLoading(true);
     abortControllerRef.current = new AbortController();
 
-    const activeModel = getActiveModel();
+    const activeModel = user?.id ? await getActiveModelWithApiKey(user.id) : null;
     if (!activeModel) {
       toast.error('请先配置AI模型');
       setIsLoading(false);
@@ -891,6 +798,7 @@ export const useChat = () => {
         apiKey: activeModel.apiKey,
         modelConfig: activeModel,
         messages: [...messagesBefore, editedMessage],
+        userId: user?.id,
         onUpdate: (content: string) => {
           setConversations(prev =>
             prev.map(c =>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Globe, Copy, Languages, ArrowLeftRight } from 'lucide-react';
+import { Globe, Languages, ArrowLeftRight } from 'lucide-react';
 import { translationService } from '@/services/translationService';
-import { getActiveModel } from '@/utils/modelStorage';
+import { getActiveModelWithApiKey } from '@/utils/modelStorage';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Dialog,
   DialogContent,
@@ -54,6 +55,7 @@ interface TranslationHistoryItem {
 const TranslationModal: React.FC<TranslationModalProps> = ({ open, onOpenChange }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [sourceText, setSourceText] = useState('');
   const [realTimeTranslatedText, setRealTimeTranslatedText] = useState('');
   // AI翻译相关功能已移除
@@ -68,9 +70,22 @@ const TranslationModal: React.FC<TranslationModalProps> = ({ open, onOpenChange 
   
   // 获取当前活动模型名称
   useEffect(() => {
-    const activeModel = getActiveModel();
-    setActiveModelName(activeModel?.name || '未知模型');
-  }, []);
+    const loadActiveModel = async () => {
+      if (!user?.id) {
+        setActiveModelName('未知模型');
+        return;
+      }
+      
+      try {
+        const activeModel = await getActiveModelWithApiKey(user.id);
+        setActiveModelName(activeModel?.name || '未知模型');
+      } catch (error) {
+        console.error('Failed to get active model:', error);
+        setActiveModelName('未知模型');
+      }
+    };
+    loadActiveModel();
+  }, [user?.id]);
   // Removed unused textareaRef
   
   // History item functionality can be implemented here if needed in the future
@@ -185,7 +200,12 @@ const TranslationModal: React.FC<TranslationModalProps> = ({ open, onOpenChange 
     
     try {
         // 使用翻译服务进行实时翻译
-        const activeModel = getActiveModel();
+        if (!user?.id) {
+          console.error('用户未登录');
+          return;
+        }
+        
+        const activeModel = await getActiveModelWithApiKey(user.id);
         if (!activeModel?.apiUrl) {
           console.error('没有可用的模型配置');
           return;

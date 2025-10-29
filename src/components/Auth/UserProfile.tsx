@@ -14,7 +14,7 @@ export const UserProfile: React.FC = () => {
   const [avatarUrl, setAvatarUrl] = useState(user?.user_metadata?.avatar_url || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadedAvatarUrl, setUploadedAvatarUrl] = useState<string>('');
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(undefined);
   const dropzoneRootRef = useRef<HTMLElement>(null!);
 
   // 使用supabase上传功能

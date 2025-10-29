@@ -8,6 +8,7 @@ import ModelSelector from './ModelSelector';
 import ModelConfigDialog from './ModelConfigDialog';
 import type { Conversation } from '@/types/chat';
 import { getActiveModelId, getModelConfigs } from '@/utils/modelStorage';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ChatContentProps {
   conversation: Conversation | undefined;
@@ -27,6 +28,7 @@ const ChatContent = ({
   onDeleteMessage,
 }: ChatContentProps) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
@@ -35,15 +37,29 @@ const ChatContent = ({
 
   useEffect(() => {
     // 获取当前模型名称
-    const activeModelId = getActiveModelId();
-    if (activeModelId) {
-      const models = getModelConfigs();
-      const model = models.find(m => m.id === activeModelId);
-      setCurrentModelName(model?.name || t('chat.assistant'));
-    } else {
-      setCurrentModelName(t('chat.assistant'));
-    }
-  }, [modelKey, t]);
+    const loadModelName = async () => {
+      if (!user?.id) {
+        setCurrentModelName(t('chat.assistant'));
+        return;
+      }
+      
+      try {
+        const activeModelId = await getActiveModelId(user.id);
+        if (activeModelId) {
+          const models = await getModelConfigs(user.id);
+          const model = models.find(m => m.id === activeModelId);
+          setCurrentModelName(model?.name || t('chat.assistant'));
+        } else {
+          setCurrentModelName(t('chat.assistant'));
+        }
+      } catch (error) {
+        console.error('Failed to load model name:', error);
+        setCurrentModelName(t('chat.assistant'));
+      }
+    };
+    
+    loadModelName();
+  }, [modelKey, t, user?.id]);
 
   useEffect(() => {
     if (scrollContainerRef.current) {
