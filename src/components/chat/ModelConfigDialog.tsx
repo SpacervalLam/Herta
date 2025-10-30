@@ -600,10 +600,12 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                             <div className="space-y-2">
                               <Label>{t('model.customHeaders')}</Label>
                               <Textarea
-                                value={JSON.stringify(editingModel.customRequestConfig?.headers || {}, null, 2)}
+                                value={editingModel.customRequestConfig?.headers && Object.keys(editingModel.customRequestConfig.headers).length > 0
+                                  ? JSON.stringify(editingModel.customRequestConfig.headers, null, 2)
+                                  : ''}
                                 onChange={e => {
                                   try {
-                                    const headers = JSON.parse(e.target.value);
+                                    const headers = e.target.value.trim() ? JSON.parse(e.target.value) : {};
                                     const customConfig = editingModel.customRequestConfig || {
                                       enabled: true,
                                       requestBodyTemplate: '',

@@ -14,17 +14,20 @@ interface ChatInputProps {
   onStop: () => void;
   isLoading: boolean;
   disabled?: boolean;
+  textareaRef?: React.RefObject<HTMLTextAreaElement>;
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
-const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
+const ChatInput = ({ onSend, onStop, isLoading, disabled, textareaRef: externalTextareaRef }: ChatInputProps) => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [input, setInput] = useState('');
   const [sendKey, setSendKey] = useState<'enter' | 'ctrl-enter'>('ctrl-enter');
   const [attachments, setAttachments] = useState<MediaAttachment[]>([]);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const internalTextareaRef = useRef<HTMLTextAreaElement>(null);
+  // 使用外部传入的ref或内部ref
+  const textareaRef = externalTextareaRef || internalTextareaRef;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 多模态支持
@@ -120,6 +123,7 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
   }, [menuOpen]);
 
   const handleSend = useCallback(() => {
+    // 只有在非加载状态且有输入内容或附件时才允许发送
     if ((input.trim() || attachments.length) && !isLoading) {
       onSend(input, attachments);
       setInput('');
@@ -410,7 +414,7 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
                 ? t('chat.inputPlaceholderMultimodal')
                 : t('chat.inputPlaceholder')
             }
-            disabled={disabled || isLoading}
+            disabled={disabled}
             className={cn(
               'flex-1 min-h-[40px] max-h-[200px] resize-none border-0 bg-transparent',
               'focus-visible:ring-0 focus-visible:ring-offset-0 px-0 py-2',

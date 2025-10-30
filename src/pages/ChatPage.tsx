@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Edit2 } from 'lucide-react';
 import { useChat } from '@/hooks/useChat';
 import ChatSidebar from '@/components/chat/ChatSidebar';
@@ -12,6 +12,8 @@ import ModelConfigDialog from '@/components/chat/ModelConfigDialog';
 import { Button } from '@/components/ui/button';
 
 const ChatPage = () => {
+  // 用于引用ChatInput组件中的textarea元素
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const {
     conversations,
     currentConversation,
@@ -60,6 +62,28 @@ const ChatPage = () => {
     // 如果不满足条件，则不添加事件监听
     return () => {};
   }, [isSelectionMode, isClickOutsideDetectionEnabled]);
+
+  // 添加全局键盘事件监听器，实现按Enter键聚焦输入框
+  useEffect(() => {
+    const handleGlobalKeyPress = (e: KeyboardEvent) => {
+      // 仅在按下Enter键且焦点不在输入框时触发
+      if (e.key === 'Enter' && document.activeElement !== textareaRef.current) {
+        // 确保输入框存在且可以聚焦
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          e.preventDefault();
+        }
+      }
+    };
+
+    // 添加键盘事件监听器
+    document.addEventListener('keydown', handleGlobalKeyPress);
+    
+    // 清理函数
+    return () => {
+      document.removeEventListener('keydown', handleGlobalKeyPress);
+    };
+  }, []);
 
   return (
     <div className="h-screen flex">
@@ -137,6 +161,7 @@ const ChatPage = () => {
             onStop={stopGeneration}
             isLoading={isLoading}
             disabled={false}
+            textareaRef={textareaRef as React.RefObject<HTMLTextAreaElement>}
           />
         </div>
       </div>
