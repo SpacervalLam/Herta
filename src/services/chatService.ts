@@ -188,11 +188,20 @@ const buildCustomRequestBody = (
   modelConfig: ModelConfig,
   apiKey?: string
 ): any => {
+  console.log('开始构建自定义请求体', { 
+    modelId: modelConfig.id, 
+    modelType: modelConfig.modelType, 
+    modelName: modelConfig.modelName || modelConfig.name,
+    messageCount: messages.length,
+    hasApiKey: !!apiKey
+  });
+  
   // 处理消息格式
   const processedMessages = messages.map(msg => {
     // 特殊处理：只有百度千帆API需要多模态格式
     if (modelConfig.modelType === 'baidu' || modelConfig.apiUrl.includes('qianfan.baidubce.com')) {
       const processedContent = processMultimodalMessage(msg);
+      console.log('处理百度千帆API多模态消息', { role: msg.role, hasAttachments: !!msg.attachments?.length });
       return {
         role: msg.role,
         content: processedContent
@@ -212,26 +221,34 @@ const buildCustomRequestBody = (
     .replace(/\{\{messages\}\}/g, JSON.stringify(processedMessages))
     .replace(/\{\{maxTokens\}\}/g, String(modelConfig.maxTokens || 2000))
     .replace(/\{\{temperature\}\}/g, String(modelConfig.temperature || 0.7))
-    .replace(/\{\{apiKey\}\}/g, apiKey || '');
+    .replace(/\{\{apiKey\}\}/g, apiKey ? '[REDACTED]' : '');
 
   // 特殊处理：如果是百度千帆API，先尝试非流式请求
-    if (modelConfig.apiUrl.includes('qianfan.baidubce.com')) {
-      try {
-        const requestBody = JSON.parse(requestBodyStr);
-        // 百度千帆可能不支持流式响应，先尝试非流式
-        if (requestBody.hasOwnProperty('stream')) {
-          delete requestBody.stream;
-          requestBodyStr = JSON.stringify(requestBody);
-        }
-      } catch (error) {
-        // 静默处理错误
+  if (modelConfig.apiUrl.includes('qianfan.baidubce.com')) {
+    try {
+      const requestBody = JSON.parse(requestBodyStr);
+      // 百度千帆可能不支持流式响应，先尝试非流式
+      if (requestBody.hasOwnProperty('stream')) {
+        console.log('百度千帆API请求，禁用stream参数', { modelId: modelConfig.id });
+        delete requestBody.stream;
+        requestBodyStr = JSON.stringify(requestBody);
       }
+    } catch (error: unknown) {
+    // 静默处理错误
+    console.warn('百度千帆API请求体预处理失败', { error: error instanceof Error ? error.message : String(error) });
+    }
   }
 
   try {
+    console.log('自定义请求体构建成功', { modelId: modelConfig.id });
     return JSON.parse(requestBodyStr);
-  } catch (error) {
-    throw new Error(`自定义请求体模板解析失败: ${error}`);
+  } catch (error: unknown) {
+    console.error('自定义请求体模板解析失败', { 
+      error: error instanceof Error ? error.message : String(error), 
+      modelId: modelConfig.id,
+      templateLength: template.length
+    });
+    throw new Error(`自定义请求体模板解析失败: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
@@ -325,7 +342,26 @@ const parseDefaultResponse = (parsed: any): string => {
 };
 
 export const sendChatStream = async (options: ChatStreamOptions): Promise<void> => {
+  console.log('开始发送聊天流请求', { 
+    modelId: options.modelConfig?.id, 
+    modelName: options.modelConfig?.name || options.modelConfig?.modelName,
+    modelType: options.modelConfig?.modelType,
+    messageCount: options.messages?.length || 0,
+    hasApiKey: !!options.apiKey,
+    temperature: options.modelConfig?.temperature,
+    maxTokens: options.modelConfig?.maxTokens
+  });
+
   const { messages, onUpdate, onComplete, onError, signal, modelConfig, apiKey: providedApiKey, userId } = options;
+  
+  // 记录最后一条用户消息内容预览
+  const lastUserMessage = messages.filter(msg => msg.role === 'user').pop();
+  if (lastUserMessage) {
+    console.log('用户输入内容预览', { 
+      content: lastUserMessage.content.substring(0, 100) + (lastUserMessage.content.length > 100 ? '...' : ''),
+      hasAttachments: !!lastUserMessage.attachments?.length
+    });
+  }
 
   // 处理消息列表，支持翻译提示词
   let processedMessages = [...messages];
@@ -455,6 +491,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
   // 百度千帆API非流式请求回退函数
   const fallbackToNonStreaming = async () => {
     try {
+      console.log('开始百度千帆非流式API回退请求', { modelId: modelConfig.id });
       
       const requestBody = buildCustomRequestBody(
         modelConfig.customRequestConfig?.requestBodyTemplate || '{"model": "{{modelName}}", "messages": {{messages}}}',
@@ -483,13 +520,16 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
         });
       }
 
+      console.log('发送API请求', { apiUrl: modelConfig.apiUrl, requestSize: JSON.stringify(requestBody).length });
       const response = await ky.post(modelConfig.apiUrl, {
         json: requestBody,
         headers,
         signal
       });
 
+      console.log('API请求成功响应', { status: response.status, statusText: response.statusText });
       const data = await response.json() as any;
+      console.log('接收API响应数据', { hasChoices: !!data.choices, hasResult: !!data.result });
 
       // 解析响应内容
       let content = '';
@@ -664,6 +704,14 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
 
   } catch (error) {
     if (!signal?.aborted) {
+      console.error('发送请求出错:', { 
+        error: error instanceof Error ? error.message : String(error),
+        modelId: modelConfig.id,
+        apiUrl: modelConfig.apiUrl,
+        errorType: error instanceof TypeError ? 'TypeError' : 
+                  error instanceof SyntaxError ? 'SyntaxError' : 
+                  'UnknownError' // 使用UnknownError代替TimeoutError
+      });
       let message = '发送消息失败';
       if (error instanceof Error) {
         message = error.message;
@@ -675,5 +723,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       }
       onError(new Error(message));
     }
+  } finally {
+    console.log('聊天请求处理完成', { modelId: modelConfig.id });
   }
 };

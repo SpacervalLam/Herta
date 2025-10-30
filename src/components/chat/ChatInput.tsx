@@ -7,6 +7,7 @@ import { settingsStorage } from '@/utils/settingsStorage';
 import { MediaAttachment } from '@/types/chat';
 import { getActiveModel } from '@/utils/modelStorage';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ChatInputProps {
   onSend: (message: string, attachments?: MediaAttachment[]) => void;
@@ -19,6 +20,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [input, setInput] = useState('');
   const [sendKey, setSendKey] = useState<'enter' | 'ctrl-enter'>('ctrl-enter');
   const [attachments, setAttachments] = useState<MediaAttachment[]>([]);
@@ -37,20 +39,38 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
   const dragCounter = useRef(0);
 
   useEffect(() => {
-    const checkModelSupport = () => {
-      const activeModel = getActiveModel();
-      setSupportsMultimodal(!!activeModel?.supportsMultimodal);
+    const checkModelSupport = async () => {
+      try {
+        // 只有当用户已登录时才获取活动模型
+        let activeModel = null;
+        if (user) {
+          activeModel = await getActiveModel(user.id);
+        }
+        setSupportsMultimodal(!!activeModel?.supportsMultimodal);
+      } catch (error) {
+        console.error('Error checking model support:', error);
+        setSupportsMultimodal(false);
+      }
     };
 
     checkModelSupport();
-    window.addEventListener('settings-changed', checkModelSupport);
-    window.addEventListener('storage', checkModelSupport);
+    
+    // 使用防抖处理设置变化事件，避免频繁请求
+    let debounceTimer: number;
+    const debouncedCheck = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(checkModelSupport, 100);
+    };
+    
+    window.addEventListener('settings-changed', debouncedCheck);
+    window.addEventListener('storage', debouncedCheck);
 
     return () => {
-      window.removeEventListener('settings-changed', checkModelSupport);
-      window.removeEventListener('storage', checkModelSupport);
+      clearTimeout(debounceTimer);
+      window.removeEventListener('settings-changed', debouncedCheck);
+      window.removeEventListener('storage', debouncedCheck);
     };
-  }, []);
+  }, [user]);
 
 
   useEffect(() => {
@@ -104,7 +124,11 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled }: ChatInputProps) => {
       onSend(input, attachments);
       setInput('');
       setAttachments([]);
-      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        // 发送消息后保持焦点在输入框
+        textareaRef.current.focus();
+      }
     }
   }, [input, attachments, isLoading, onSend]);
 

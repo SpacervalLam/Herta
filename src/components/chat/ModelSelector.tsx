@@ -39,6 +39,21 @@ export default function ModelSelector({ onModelChange }: ModelSelectorProps) {
     loadModels();
   }, [user?.id]);
 
+  // 监听模型变更事件，实现配置更改后自动刷新模型列表
+  useEffect(() => {
+    const handleModelChanged = () => {
+      loadModels();
+    };
+    
+    // 添加事件监听器
+    window.addEventListener('model-changed', handleModelChanged);
+    
+    // 清理事件监听器
+    return () => {
+      window.removeEventListener('model-changed', handleModelChanged);
+    };
+  }, []);
+
   const handleModelChange = async (modelId: string) => {
     if (!user?.id) {
       toast.error(t('error.notLoggedIn'));
@@ -53,6 +68,8 @@ export default function ModelSelector({ onModelChange }: ModelSelectorProps) {
         toast.success(t('model.switchTo', { name: model.name }));
       }
       onModelChange?.();
+      // 触发模型变更事件
+      window.dispatchEvent(new CustomEvent('model-changed'));
     } catch (error) {
       console.error('Failed to switch model:', error);
       toast.error(t('error.unknownError'));

@@ -72,20 +72,55 @@ export const getModelConfigWithApiKey = async (userId: string, modelId: string):
 // 保存所有模型配置（仅使用Supabase数据库）
 export const saveModelConfigs = async (configs: ModelConfig[], userId: string): Promise<void> => {
   try {
+    // 验证参数
+    if (!userId || userId === 'undefined') {
+      throw new Error('保存模型配置失败: 用户ID无效');
+    }
+    
+    if (!Array.isArray(configs)) {
+      throw new Error('保存模型配置失败: 配置列表必须是数组');
+    }
+    
     // 逐个保存到Supabase
-    for (const config of configs) {
-      await saveModelConfig(config, userId);
+    for (let i = 0; i < configs.length; i++) {
+      const config = configs[i];
+      try {
+        await saveModelConfig(config, userId);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`保存第 ${i + 1}/${configs.length} 个模型配置失败: ${errorMessage}`);
+      }
     }
   } catch (error) {
-    console.error('保存模型配置失败:', error);
-    throw error;
+    // 增强错误处理，提供更详细的错误信息
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const detailedError = new Error(`批量保存模型配置失败: ${errorMessage}`);
+    
+    // 记录详细错误信息到控制台
+    console.error('批量保存模型配置失败:', {
+      error: error,
+      userId: userId,
+      configsCount: configs?.length || 0
+    });
+    
+    throw detailedError;
   }
 };
 
 // 添加或更新模型配置
 export const saveModelConfig = async (config: ModelConfig, userId: string): Promise<void> => {
   try {
+    // 验证参数
+    if (!userId || userId === 'undefined' || !config) {
+      throw new Error('保存模型配置失败: 用户ID或配置对象无效');
+    }
+    
     config.updatedAt = Date.now();
+    
+    // 验证必要字段
+    if (!config.id || !config.name || !config.modelName || !config.apiUrl) {
+      throw new Error('保存模型配置失败: 缺少必要字段（ID、名称、模型名称或API URL）');
+    }
     
     // 保存到Supabase
     await apiKeyService.saveModelConfig(config, userId);
@@ -95,9 +130,29 @@ export const saveModelConfig = async (config: ModelConfig, userId: string): Prom
       tempApiKeys.set(config.id, config.apiKey);
     }
   } catch (error) {
-    console.error('保存模型配置失败:', error);
-    throw error;
+    // 增强错误处理，提供更详细的错误信息
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const detailedError = new Error(`保存模型配置失败: ${errorMessage}`);
+    
+    // 记录详细错误信息到控制台
+    console.error('保存模型配置失败:', {
+      error: error,
+      userId: userId,
+      modelId: config?.id,
+      modelName: config?.name
+    });
+    
+    throw detailedError;
   }
+};
+
+// 生成UUID函数
+const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 };
 
 // 添加模型配置
@@ -105,7 +160,7 @@ export const addModelConfig = async (model: Omit<ModelConfig, 'id' | 'createdAt'
   const now = Date.now();
   const newModel: ModelConfig = {
     ...model,
-    id: `model-${now}-${Math.random().toString(36).substring(2, 9)}`,
+    id: generateUUID(), // 使用符合UUID格式的ID
     createdAt: now,
     updatedAt: now
   };

@@ -37,35 +37,79 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // 确保用户资料在users表中存在
   const ensureUserProfileExists = async (userId: string, email?: string, name?: string) => {
     try {
-      // 检查用户是否已存在
-      const { data: existingUser, error: findError } = await supabase
+      // 优化的查询方式：先检查是否有相同ID的用户
+      const { data: usersById } = await supabase
         .from('users')
         .select('id')
         .eq('id', userId)
-        .single();
+        .limit(1);
 
-      if (findError && findError.code !== 'PGRST116') { // PGRST116表示记录不存在
-        throw findError;
+      // 如果用户已存在，直接返回
+      if (usersById && usersById.length > 0) {
+        return;
       }
 
-      // 如果用户不存在，创建用户记录
-      if (!existingUser) {
-        const { error: insertError } = await supabase
+      // 如果提供了email，检查是否有相同email的用户
+      if (email) {
+        // 使用select不带single()，避免在没有记录时抛出错误
+        const { data: usersByEmail } = await supabase
           .from('users')
-          .insert({
+          .select('id')
+          .eq('email', email)
+          .limit(1);
+
+        // 如果存在相同email的用户，更新该用户的ID为当前用户ID
+        if (usersByEmail && usersByEmail.length > 0) {
+          const existingId = usersByEmail[0].id;
+          // 避免自我更新
+          if (existingId !== userId) {
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({ id: userId, updated_at: new Date() })
+              .eq('email', email);
+
+            if (updateError) {
+              console.error('尝试更新现有用户ID失败:', updateError);
+              // 不抛出错误，继续尝试其他方式
+            } else {
+              console.log(`成功将用户ID从 ${existingId} 更新为 ${userId}`);
+              return; // 更新成功，任务完成
+            }
+          }
+        }
+      }
+
+      // 如果上面的逻辑都没有解决问题，尝试直接更新或创建
+      // 使用upsert代替insert，设置冲突目标为id
+      const { error: upsertError } = await supabase
+        .from('users')
+        .upsert(
+          {
             id: userId,
             email,
             name: name || email?.split('@')[0],
             created_at: new Date(),
             updated_at: new Date()
-          });
+          },
+          {
+            onConflict: 'id', // 当id冲突时更新而不是插入
+            ignoreDuplicates: false
+          }
+        );
 
-        if (insertError) {
-          throw insertError;
+      if (upsertError) {
+        // 如果upsert也失败，可能是因为email冲突
+        if (upsertError.code === '23505' && email) {
+          console.warn('用户资料已存在，使用现有记录');
+          // 不抛出错误，允许流程继续
+        } else {
+          console.error('用户资料操作失败:', upsertError);
+          // 不抛出错误，避免中断整个认证流程
         }
       }
     } catch (error) {
-      console.error('Failed to ensure user profile exists:', error);
+      console.error('确保用户资料存在时发生错误:', error);
+      // 静默处理错误，允许认证流程继续
     }
   };
 

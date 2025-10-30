@@ -38,6 +38,16 @@ import {
 } from '@/services/ollamaService';
 import { Card } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel
+} from '@/components/ui/alert-dialog';
 
 interface ModelConfigDialogProps {
   onModelChange?: () => void;
@@ -53,6 +63,10 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
   const [isNewModel, setIsNewModel] = useState(false);
   const [isDetectingOllama, setIsDetectingOllama] = useState(false);
   const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
+  // 用于控制删除确认对话框
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  // 存储待删除的模型信息
+  const [modelToDelete, setModelToDelete] = useState<{id: string, name: string} | null>(null);
 
   useEffect(() => {
     if (open) loadModels();
@@ -132,33 +146,58 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
       setEditingModel(null);
       setIsNewModel(false);
       onModelChange?.();
+      // 触发模型变更事件
+      window.dispatchEvent(new CustomEvent('model-changed'));
     } catch (error) {
       console.error('Failed to save model:', error);
       toast.error(t('error.unknownError'));
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm(t('model.deleteConfirm'))) {
-      try {
-        if (!user?.id) {
-          toast.error(t('error.notLoggedIn'));
-          return;
-        }
-        
-        await deleteModelConfig(id, user.id);
-        toast.success(t('model.deleteSuccess'));
-        await loadModels();
-        if (selectedModelId === id) {
-          setSelectedModelId(null);
-          setEditingModel(null);
-        }
-        onModelChange?.();
-      } catch (error) {
-        console.error('Failed to delete model:', error);
-        toast.error(t('error.unknownError'));
-      }
+  // 打开删除确认对话框
+  const handleDeleteClick = (id: string) => {
+    // 查找模型名称
+    const model = models.find(m => m.id === id);
+    if (model) {
+      setModelToDelete({id: model.id, name: model.name});
+      setDeleteDialogOpen(true);
     }
+  };
+
+  // 执行模型删除操作
+  const handleConfirmDelete = async () => {
+    if (!modelToDelete || !user?.id) return;
+    
+    try {
+      // 执行删除操作
+      await deleteModelConfig(modelToDelete.id, user.id);
+      toast.success(t('model.deleteSuccess'));
+      
+      // 更新模型列表
+      await loadModels();
+      
+      // 更新状态
+      if (selectedModelId === modelToDelete.id) {
+        setSelectedModelId(null);
+        setEditingModel(null);
+      }
+      
+      onModelChange?.();
+      window.dispatchEvent(new CustomEvent('model-changed'));
+    } catch (error) {
+      console.error('删除模型失败:', error);
+      toast.error(t('error.unknownError'));
+    } finally {
+      // 关闭对话框并重置状态
+      setDeleteDialogOpen(false);
+      setModelToDelete(null);
+    }
+  };
+
+  // 取消删除操作
+  const handleCancelDelete = () => {
+    setDeleteDialogOpen(false);
+    setModelToDelete(null);
   };
 
   const handleEdit = (model: ModelConfig) => {
@@ -178,6 +217,8 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
       setSelectedModelId(id);
       toast.success(t('model.switchSuccess'));
       onModelChange?.();
+      // 触发模型变更事件
+      window.dispatchEvent(new CustomEvent('model-changed'));
     } catch (error) {
       console.error('Failed to set active model:', error);
       toast.error(t('error.unknownError'));
@@ -224,6 +265,8 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
             : t('model.detectOllamaAllConfigured', { total: installedModels.length })
         );
         loadModels();
+        // 触发模型变更事件
+        window.dispatchEvent(new CustomEvent('model-changed'));
       } else {
         toast.error(serviceStatus.error || t('error.ollamaNotRunning'));
       }
@@ -304,7 +347,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                             className="h-6 w-6"
                             onClick={e => {
                               e.stopPropagation();
-                              handleDelete(model.id);
+                              handleDeleteClick(model.id);
                             }}
                           >
                             <Trash2 className="h-3 w-3" />
@@ -709,6 +752,22 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
           </Card>
         </div>
       </DialogContent>
+      
+      {/* 删除确认对话框 */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('model.confirmDeleteTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {modelToDelete ? t('model.confirmDeleteMessage', { modelName: modelToDelete.name }) : t('model.confirmDeleteMessage', { modelName: '模型' })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+              <AlertDialogCancel onClick={handleCancelDelete}>{t('common.cancel')}</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{t('model.confirmDeleteButton')}</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

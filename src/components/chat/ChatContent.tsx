@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Edit2, Check, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import ChatMessage from './ChatMessage';
-import ModelSelector from './ModelSelector';
-import ModelConfigDialog from './ModelConfigDialog';
 import type { Conversation } from '@/types/chat';
 import { getActiveModelId, getModelConfigs } from '@/utils/modelStorage';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,7 +30,7 @@ const ChatContent = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
-  const [modelKey, setModelKey] = useState(0);
+
   const [currentModelName, setCurrentModelName] = useState<string>('');
 
   useEffect(() => {
@@ -59,7 +57,17 @@ const ChatContent = ({
     };
     
     loadModelName();
-  }, [modelKey, t, user?.id]);
+    
+    // 监听模型变更事件
+    const handleModelChange = () => {
+      loadModelName();
+    };
+    
+    window.addEventListener('model-changed', handleModelChange);
+    return () => {
+      window.removeEventListener('model-changed', handleModelChange);
+    };
+  }, [t, user?.id]);
 
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -67,16 +75,31 @@ const ChatContent = ({
     }
   }, [conversation?.messages]);
 
-  const handleModelChange = () => {
-    setModelKey(prev => prev + 1);
-  };
 
+
+  // 先定义handleStartEdit函数
   const handleStartEdit = () => {
     if (conversation) {
       setEditedTitle(conversation.title);
       setIsEditingTitle(true);
     }
   };
+  
+  // 创建一个引用类型以便能够从外部访问组件方法
+  const componentRef = useRef<{
+    handleStartEdit: () => void;
+  }>(null);
+  
+  // 将方法赋值给引用，以便外部可以调用
+  useEffect(() => {
+    componentRef.current = {
+      handleStartEdit
+    };
+    if (typeof window !== 'undefined') {
+      // 为window对象添加类型断言
+      (window as any)['chatContentRef'] = componentRef;
+    }
+  }, [handleStartEdit]);
 
   const handleSaveTitle = () => {
     if (conversation && editedTitle.trim()) {
@@ -106,42 +129,28 @@ const ChatContent = ({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="border-b p-4 flex items-center justify-between bg-background shrink-0">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          {isEditingTitle ? (
-            <>
-              <Input
-                value={editedTitle}
-                onChange={(e) => setEditedTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveTitle();
-                  if (e.key === 'Escape') handleCancelEdit();
-                }}
-                className="max-w-md"
-                autoFocus
-                placeholder={t('chat.conversationTitlePlaceholder')}
-              />
-              <Button size="icon" variant="ghost" onClick={handleSaveTitle}>
-                <Check className="h-4 w-4" />
-              </Button>
-              <Button size="icon" variant="ghost" onClick={handleCancelEdit}>
-                <X className="h-4 w-4" />
-              </Button>
-            </>
-          ) : (
-            <>
-              <h2 className="text-lg font-semibold truncate">{conversation.title}</h2>
-              <Button size="icon" variant="ghost" onClick={handleStartEdit}>
-                <Edit2 className="h-4 w-4" />
-              </Button>
-            </>
-          )}
+      {/* 编辑标题的临时覆盖层 */}
+      {isEditingTitle && conversation && (
+        <div className="fixed top-0 left-0 right-0 p-4 bg-background border-b z-30 flex items-center justify-start">
+          <Input
+            value={editedTitle}
+            onChange={(e) => setEditedTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSaveTitle();
+              if (e.key === 'Escape') handleCancelEdit();
+            }}
+            className="max-w-md"
+            autoFocus
+            placeholder={t('chat.conversationTitlePlaceholder')}
+          />
+          <Button size="icon" variant="ghost" onClick={handleSaveTitle}>
+            <Check className="h-4 w-4" />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={handleCancelEdit}>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
-        <div className="flex items-center gap-2 mr-16">
-          <ModelSelector key={modelKey} onModelChange={handleModelChange} />
-          <ModelConfigDialog onModelChange={handleModelChange} />
-        </div>
-      </div>
+      )}
       <div 
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto custom-scrollbar smooth-scroll bg-background/80 backdrop-blur-sm"

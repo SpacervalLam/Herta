@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Edit2 } from 'lucide-react';
 import { useChat } from '@/hooks/useChat';
 import ChatSidebar from '@/components/chat/ChatSidebar';
 import ChatContent from '@/components/chat/ChatContent';
@@ -6,6 +7,9 @@ import ChatInput from '@/components/chat/ChatInput';
 import SettingsDialog from '@/components/chat/SettingsDialog';
 import TranslationModal from '@/components/features/TranslationModal';
 import UserMenu from '@/components/Auth/UserMenu';
+import ModelSelector from '@/components/chat/ModelSelector';
+import ModelConfigDialog from '@/components/chat/ModelConfigDialog';
+import { Button } from '@/components/ui/button';
 
 const ChatPage = () => {
   const {
@@ -16,7 +20,6 @@ const ChatPage = () => {
     setCurrentConversationId,
     createNewConversation,
     deleteConversation,
-    deleteConversations,
     updateConversationTitle,
     sendMessage,
     stopGeneration,
@@ -68,7 +71,9 @@ const ChatPage = () => {
           onSelectConversation={setCurrentConversationId}
           onNewConversation={createNewConversation}
           onDeleteConversation={deleteConversation}
-          onDeleteConversations={deleteConversations}
+          onDeleteConversations={(ids: string[]) => {
+            ids.forEach(id => deleteConversation(id));
+          }}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenTranslation={() => setTranslationOpen(true)}
           collapsed={sidebarCollapsed}
@@ -82,11 +87,37 @@ const ChatPage = () => {
       </div>
 
       {/* 主内容区 */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 relative">
         {/* 用户菜单 - 固定在右上角 */}
         <div className="absolute top-4 right-4 z-20">
           <UserMenu />
         </div>
+        
+        {/* 顶部工具栏区域 - 集成模型选择、配置和对话标题 */}
+        <div className="border-b p-4 flex items-center justify-between bg-background shrink-0">
+          {/* 左侧：对话标题 */}
+          <div className="flex-1 min-w-0">
+            {currentConversation && (
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold truncate">{currentConversation.title}</h2>
+                <Button size="icon" variant="ghost" onClick={() => {
+                  if ((window as any)['chatContentRef']?.current?.handleStartEdit) {
+                    (window as any)['chatContentRef'].current.handleStartEdit();
+                  }
+                }}>
+                  <Edit2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+          
+          {/* 右侧：模型选择和配置 - 与用户菜单保持距离 */}
+          <div className="flex items-center gap-2 mr-20">
+            <ModelSelector />
+            <ModelConfigDialog />
+          </div>
+        </div>
+        
         {/* 聊天内容区域 - 可滚动 */}
         <div className="flex-1 overflow-hidden">
           <ChatContent

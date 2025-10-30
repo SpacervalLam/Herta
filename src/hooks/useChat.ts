@@ -6,7 +6,7 @@ import type { Conversation, ChatMessage } from '@/types/chat';
 import type { ModelConfig } from '@/types/model';
 import { MediaAttachment } from '@/types/chat';
 import { useAuth } from '@/contexts/AuthContext';
-import { conversationService, messageService, attachmentService } from '@/services/supabaseService';
+import { conversationService, messageService, attachmentService, generateUUID } from '@/services/supabaseService';
 
 const STORAGE_KEY = 'ai-chat-conversations'; // 未登录用户使用localStorage
 
@@ -20,6 +20,7 @@ export const useChat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const assistantContentRef = useRef('');
   
   const { user } = useAuth();
 
@@ -174,36 +175,70 @@ export const useChat = () => {
   const createNewConversation = useCallback(async () => {
     try {
       const timestamp = Date.now();
-      const newConversation: Conversation = {
-        id: `conv-${timestamp}`,
-        title: '新对话',
-        messages: undefined, // 设置为undefined以便懒加载消息
-        createdAt: timestamp,
-        updatedAt: timestamp
-      };
+      let newConversation: Conversation;
       
       if (user) {
-        // 已登录用户：保存到数据库
+        // 已登录用户：先保存到数据库获取正确的UUID
         try {
-          const savedConversation = await conversationService.createConversation({
-            userId: user.id,
-            title: newConversation.title,
-            createdAt: new Date(timestamp),
-            updatedAt: new Date(timestamp),
-            userEmail: user.email,
-            userName: user.user_metadata?.name || user.email?.split('@')[0]
-          });
+          const savedConversation = await conversationService.createConversation(user.id, '新对话');
           
           if (savedConversation) {
-            newConversation.id = savedConversation.id;
+            newConversation = {
+              id: savedConversation.id,
+              title: savedConversation.title,
+              messages: undefined,
+              createdAt: timestamp,
+              updatedAt: timestamp
+            };
+          } else {
+            // 如果数据库操作失败，使用本地生成的UUID
+            const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+              const r = Math.random() * 16 | 0;
+              const v = c === 'x' ? r : (r & 0x3 | 0x8);
+              return v.toString(16);
+            });
+            newConversation = {
+              id: uuid,
+              title: '新对话',
+              messages: undefined,
+              createdAt: timestamp,
+              updatedAt: timestamp
+            };
           }
         } catch (dbError) {
           console.error('Failed to save conversation to database:', dbError);
           toast.error('创建对话时数据库错误');
+          // 即使数据库错误，也要生成有效的UUID格式
+          const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+          });
+          newConversation = {
+            id: uuid,
+            title: '新对话',
+            messages: undefined,
+            createdAt: timestamp,
+            updatedAt: timestamp
+          };
         }
+      } else {
+        // 未登录用户：使用本地生成的UUID格式，而不是conv-timestamp格式
+        const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+        newConversation = {
+          id: uuid,
+          title: '新对话',
+          messages: undefined,
+          createdAt: timestamp,
+          updatedAt: timestamp
+        };
       }
       
-      // 不立即添加到conversations列表，只设置为当前对话
+      // 添加到conversations列表并设置为当前对话
       setConversations(prev => [newConversation, ...prev]);
       setCurrentConversationId(newConversation.id);
       return newConversation;
@@ -344,6 +379,9 @@ export const useChat = () => {
   const sendMessage = useCallback(async (content: string, attachments?: MediaAttachment[]) => {
     if ((!content.trim() && !attachments?.length) || isLoading) return;
 
+    // 重置AI回复内容ref
+    assistantContentRef.current = '';
+    
     let activeModel: ModelConfig | null = null;
     let conversation: Conversation | null = null;
     let isFirstMessage: boolean = false;
@@ -378,7 +416,7 @@ export const useChat = () => {
 
       isFirstMessage = !conversation.messages || conversation.messages.length === 0;
       timestamp = Date.now();
-      userMessageId = `msg-${timestamp}`;
+      userMessageId = generateUUID();
       
       userMessage = {
         id: userMessageId,
@@ -389,7 +427,7 @@ export const useChat = () => {
       };
 
       // 创建assistant消息，记录当前使用的模型信息
-      assistantMessageId = `msg-${timestamp + 1}`;
+      assistantMessageId = generateUUID();
       assistantMessage = {
         id: assistantMessageId,
         role: 'assistant' as const,
@@ -412,6 +450,22 @@ export const useChat = () => {
         )
       );
 
+      // 已登录用户：保存用户消息到数据库
+      if (user) {
+        try {
+          await messageService.createMessage({
+            conversationId: conversation.id,
+            role: 'user',
+            content: userMessage.content,
+            timestamp: new Date(userMessage.timestamp),
+            modelName: activeModel.name,
+            modelId: activeModel.id
+          });
+        } catch (dbError) {
+          console.error('Failed to save user message to database:', dbError);
+        }
+      }
+
       setIsLoading(true);
       abortControllerRef.current = new AbortController();
 
@@ -423,6 +477,8 @@ export const useChat = () => {
         messages: [...(conversation?.messages || []), userMessage],
         userId: user?.id,
         onUpdate: (content: string) => {
+          // 保存最新的AI回复内容到ref
+          assistantContentRef.current = content;
           setConversations(prev =>
             prev.map(c =>
               c.id === conversation!.id
@@ -439,6 +495,27 @@ export const useChat = () => {
         onComplete: async () => {
           setIsLoading(false);
           abortControllerRef.current = null;
+
+          // 已登录用户：保存新的AI回复到数据库
+          if (user && conversation && activeModel) {
+            try {
+              await messageService.createMessage({
+                conversationId: conversation.id,
+                role: 'assistant',
+                content: assistantContentRef.current || '', // 使用ref中的最新内容，提供默认值
+                timestamp: new Date(assistantMessage.timestamp),
+                modelName: activeModel.name,
+                modelId: activeModel.id
+              });
+              
+              // 更新对话的更新时间戳
+              await conversationService.updateConversation(conversation.id, user.id, {
+                updatedAt: new Date(assistantMessage.timestamp)
+              });
+            } catch (dbError) {
+              console.error('Failed to save AI message to database:', dbError);
+            }
+          }
 
           if (isFirstMessage) {
             // AI回复完成后生成对话标题
@@ -501,6 +578,9 @@ export const useChat = () => {
     toast.success('对话已导出');
   }, [conversations]);
 
+  // 保存最新生成的内容的ref
+  const generatedContentRef = useRef('');
+  
   // 重试生成回复
   const retryMessage = useCallback(async (messageId: string) => {
     if (!currentConversation || isLoading) return;
@@ -519,31 +599,37 @@ export const useChat = () => {
       return;
     }
 
-    // 移除当前消息及之后的所有消息
-    const messagesBefore = currentConversation.messages?.slice(0, userMessageIndex + 1) || [];
-
-    setConversations(prev =>
-      prev.map(c =>
-        c.id === currentConversation.id
-          ? { ...c, messages: messagesBefore, updatedAt: Date.now() }
-          : c
-      )
-    );
-
-    // 创建新的assistant消息
-    const assistantMessage: ChatMessage = {
-      id: `msg-${Date.now() + 1}`,
+    // 不需要移除任何消息，只获取当前AI回复之前的消息作为上下文
+    const contextMessages = currentConversation.messages?.slice(0, userMessageIndex + 1) || [];
+    
+    // 保存当前AI消息的ID和原始时间戳，用于更新
+    const originalMessageId = currentConversation.messages[messageIndex].id;
+    const originalTimestamp = currentConversation.messages[messageIndex].timestamp;
+    
+    // 重置ref内容
+    generatedContentRef.current = '';
+    
+    // 更新为新的AI消息（保留原有ID）
+    const updatedAssistantMessage: ChatMessage = {
+      id: originalMessageId, // 保持原有ID不变
       role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
+      content: '', // 初始为空
+      timestamp: originalTimestamp, // 保持原有时间戳
       modelName: activeModel.name,
       modelId: activeModel.id
     };
 
+    // 更新UI显示为加载状态
     setConversations(prev =>
       prev.map(c =>
         c.id === currentConversation.id
-          ? { ...c, messages: [...messagesBefore, assistantMessage] }
+          ? {
+              ...c,
+              messages: (c.messages || []).map(m =>
+                m.id === originalMessageId ? updatedAssistantMessage : m
+              ),
+              updatedAt: Date.now()
+            }
           : c
       )
     );
@@ -556,46 +642,62 @@ export const useChat = () => {
         endpoint: activeModel.apiUrl,
         apiKey: activeModel.apiKey,
         modelConfig: activeModel,
-        messages: messagesBefore,
+        messages: contextMessages,
         userId: user?.id,
         onUpdate: (content: string) => {
+          // 更新相同ID的消息内容
           setConversations(prev =>
             prev.map(c =>
               c.id === currentConversation.id
                 ? {
-                  ...c,
-                  messages: (c.messages || []).map(m =>
-                    m.id === assistantMessage.id ? { ...m, content } : m
-                  )
-                }
+                    ...c,
+                    messages: (c.messages || []).map(m =>
+                      m.id === originalMessageId ? { ...m, content } : m
+                    )
+                  }
                 : c
             )
           );
+          // 同时更新ref中的内容
+          generatedContentRef.current = content;
         },
         onComplete: async () => {
           setIsLoading(false);
           abortControllerRef.current = null;
           
-          // 已登录用户：保存新的AI回复到数据库
+          // 已登录用户：更新数据库中的AI回复
           if (user) {
             try {
-                // 直接使用本地变量保存消息
-                await messageService.createMessage({
-                  conversationId: currentConversation.id,
-                  role: 'assistant',
-                  content: assistantMessage.content,
-                  timestamp: new Date(assistantMessage.timestamp),
-                  modelName: activeModel.name,
-                  modelId: activeModel.id
-                });
-                
-                // 更新对话的更新时间戳
-                await conversationService.updateConversation(currentConversation.id, user.id, {
-                  updatedAt: new Date(assistantMessage.timestamp)
-                });
-              } catch (dbError) {
-                console.error('Failed to save new AI message to database:', dbError);
+              // 使用ref中保存的最新内容
+              const latestContent = generatedContentRef.current;
+              
+              console.log('Updating message in database:', {
+                messageId: originalMessageId,
+                contentLength: latestContent.length,
+                conversationId: currentConversation.id
+              });
+              
+              // 使用updateMessage更新现有消息
+              const updateResult = await messageService.updateMessage(originalMessageId, {
+                content: latestContent,
+                modelName: activeModel.name,
+                modelId: activeModel.id
+              });
+              
+              if (updateResult) {
+                console.log('Message updated successfully in database:', originalMessageId);
+              } else {
+                console.log('Message not found in database, skipping update:', originalMessageId);
               }
+              
+              // 更新对话的更新时间戳
+              await conversationService.updateConversation(currentConversation.id, user.id, {
+                updatedAt: new Date()
+              });
+            } catch (dbError) {
+              console.error('Failed to update AI message in database:', dbError);
+              toast.warning('消息已更新，但数据库同步失败');
+            }
           }
         },
         onError: (error: Error) => {
@@ -604,16 +706,6 @@ export const useChat = () => {
           toast.error('重新生成失败', {
             description: error.message || '请检查模型配置或稍后重试'
           });
-          setConversations(prev =>
-            prev.map(c =>
-              c.id === currentConversation.id
-                ? {
-                  ...c,
-                  messages: (c.messages || []).filter(m => m.id !== assistantMessage.id)
-                }
-                : c
-            )
-          );
         },
         signal: abortControllerRef.current.signal
       });
@@ -661,14 +753,7 @@ export const useChat = () => {
     if (user) {
       try {
         // 创建新对话记录
-        const savedConversation = await conversationService.createConversation({
-            userId: user.id,
-            title: newConversation.title,
-            createdAt: new Date(timestamp),
-            updatedAt: new Date(timestamp),
-            userEmail: user.email,
-            userName: user.user_metadata?.name || user.email?.split('@')[0]
-          });
+        const savedConversation = await conversationService.createConversation(user.id, newConversation.title);
         
         if (savedConversation) {
           // 更新本地对话ID为数据库ID
@@ -718,19 +803,37 @@ export const useChat = () => {
   const editMessage = useCallback(async (messageId: string, newContent: string) => {
     if (!currentConversation || isLoading) return;
 
-    // 找到要编辑的消息
+    // 找到要编辑的用户消息
     const messageIndex = currentConversation.messages?.findIndex(m => m.id === messageId) ?? -1;
     if (messageIndex === -1 || !currentConversation.messages || currentConversation.messages[messageIndex].role !== 'user') return;
 
-    // 移除该消息之后的所有消息
+    // 查找对应的AI消息（如果存在）
+    let correspondingAssistantMessageId = null;
+    if (messageIndex + 1 < currentConversation.messages.length && 
+        currentConversation.messages[messageIndex + 1].role === 'assistant') {
+      // 保留现有的AI消息ID，这样就不会创建新的消息记录
+      correspondingAssistantMessageId = currentConversation.messages[messageIndex + 1].id;
+    } else {
+      // 如果没有对应的AI消息，生成一个新的
+      correspondingAssistantMessageId = generateUUID();
+    }
+
+    // 保留用户消息之前的所有消息，加上编辑后的用户消息和空内容的AI消息
     const messagesBefore = currentConversation.messages?.slice(0, messageIndex) || [];
-    const editedMessage = currentConversation.messages ? { ...currentConversation.messages[messageIndex], content: newContent } : { id: messageId, role: 'user' as const, content: newContent, timestamp: Date.now() };
+    const editedMessage = { ...currentConversation.messages[messageIndex], content: newContent };
+    const assistantMessage = { 
+      id: correspondingAssistantMessageId, 
+      role: 'assistant' as const, 
+      content: '', 
+      timestamp: Date.now() 
+    };
     const timestamp = Date.now();
 
+    // 更新前端状态
     setConversations(prev =>
       prev.map(c =>
         c.id === currentConversation.id
-          ? { ...c, messages: [...messagesBefore, editedMessage], updatedAt: timestamp }
+          ? { ...c, messages: [...messagesBefore, editedMessage, assistantMessage], updatedAt: timestamp }
           : c
       )
     );
@@ -738,49 +841,55 @@ export const useChat = () => {
     // 已登录用户：更新数据库中的消息
     if (user) {
       try {
-        const message = currentConversation?.messages?.find(m => m.id === messageId);
-        if (message) {
-          await messageService.updateMessage(messageId, {
-            content: newContent,
-            modelName: message.modelName,
-            modelId: message.modelId
-          });
-          
-          // 更新对话的updatedAt
-          await conversationService.updateConversation(currentConversation.id, user.id, {
-            updatedAt: new Date(timestamp)
-          });
-        }
+        // 1. 更新用户消息内容
+        await messageService.updateMessage(messageId, {
+          content: newContent,
+          modelName: editedMessage.modelName,
+          modelId: editedMessage.modelId
+        });
+        console.log('成功更新用户消息', { messageId });
         
-        // 删除后续的AI消息
-        const messageAfterIndex = messageIndex + 1;
-        if (currentConversation.messages && 
-            messageAfterIndex < currentConversation.messages.length && 
-            currentConversation.messages[messageAfterIndex].role === 'assistant') {
-          const aiMessageId = currentConversation.messages[messageAfterIndex].id;
-          await messageService.deleteMessage(aiMessageId);
+        // 2. 更新对话的updatedAt
+        await conversationService.updateConversation(currentConversation.id, user.id, {
+          updatedAt: new Date(timestamp)
+        });
+        
+        // 3. 删除用户消息和AI消息对之后的所有消息
+        // 注意：我们只保留到AI消息为止，删除之后的所有消息
+        if (currentConversation.messages) {
+          // 计算要保留的消息数量：当前用户消息 + 可能存在的AI消息
+          let messagesAfterIndex = messageIndex + 1; // 至少保留当前用户消息
+          
+          // 如果下一条消息是AI消息，我们也要保留它，只删除其后的消息
+          if (messageIndex + 1 < currentConversation.messages.length && 
+              currentConversation.messages[messageIndex + 1].role === 'assistant') {
+            messagesAfterIndex = messageIndex + 2; // 保留用户消息和AI消息
+          }
+          
+          if (messagesAfterIndex < currentConversation.messages.length) {
+            const messagesToDelete = currentConversation.messages.slice(messagesAfterIndex);
+            console.log(`开始删除${messagesToDelete.length}条后续消息`);
+            
+            for (const message of messagesToDelete) {
+              try {
+                console.log('删除后续消息', { messageId: message.id, role: message.role });
+                await messageService.deleteMessage(message.id);
+                console.log('删除消息成功', { messageId: message.id });
+              } catch (deleteError) {
+                console.error('删除消息失败', { messageId: message.id, error: deleteError });
+                // 即使某条消息删除失败，继续删除其他消息
+                continue;
+              }
+            }
+          }
         }
       } catch (dbError) {
-        console.error('Failed to update message in database:', dbError);
+        console.error('数据库操作失败:', dbError);
       }
     }
 
-    // 创建新的assistant消息
-    const assistantMessageId = `msg-${timestamp + 1}`;
-    const assistantMessage: ChatMessage = {
-      id: assistantMessageId,
-      role: 'assistant',
-      content: '',
-      timestamp: timestamp
-    };
-
-    setConversations(prev =>
-      prev.map(c =>
-        c.id === currentConversation.id
-          ? { ...c, messages: [...messagesBefore, editedMessage, assistantMessage] }
-          : c
-      )
-    );
+    // 重置ref内容，用于跟踪最新生成的AI回复
+    generatedContentRef.current = '';
 
     setIsLoading(true);
     abortControllerRef.current = new AbortController();
@@ -812,10 +921,52 @@ export const useChat = () => {
                 : c
             )
           );
+          // 更新ref中的内容，确保在onComplete时能获取到最新值
+          generatedContentRef.current = content;
         },
-        onComplete: () => {
+        onComplete: async () => {
           setIsLoading(false);
           abortControllerRef.current = null;
+          
+          // 已登录用户：更新数据库中的AI回复
+          if (user) {
+            try {
+              // 使用ref中保存的最新内容
+              const latestContent = generatedContentRef.current;
+              
+              console.log('更新AI消息到数据库:', {
+                messageId: correspondingAssistantMessageId,
+                contentLength: latestContent.length,
+                conversationId: currentConversation.id
+              });
+              
+              // 检查该AI消息是否已存在于数据库中
+              try {
+                // 尝试更新现有消息
+                await messageService.updateMessage(correspondingAssistantMessageId, {
+                  content: latestContent,
+                  modelName: activeModel.name,
+                  modelId: activeModel.id
+                });
+                console.log('成功更新AI消息到数据库:', correspondingAssistantMessageId);
+              } catch (updateError) {
+                // 如果更新失败（可能是消息不存在），则创建新消息
+                console.log('AI消息不存在于数据库，创建新消息:', correspondingAssistantMessageId);
+                await messageService.createMessage({
+                  conversationId: currentConversation.id,
+                  content: latestContent,
+                  role: 'assistant',
+                  timestamp: new Date(timestamp),
+                  modelName: activeModel.name,
+                  modelId: activeModel.id
+                });
+                console.log('成功创建AI消息到数据库:', correspondingAssistantMessageId);
+              }
+            } catch (dbError) {
+              console.error('AI消息数据库同步失败:', dbError);
+              toast.warning('AI回复已生成，但数据库同步失败');
+            }
+          }
         },
         onError: (error: Error) => {
           setIsLoading(false);
