@@ -132,7 +132,7 @@ export const useChat = () => {
               m.role === msg.role &&
               Math.abs(m.timestamp - msg.timestamp) < 1000 // 允许1秒内的时间差异
             )
-          );
+          ).sort((a, b) => a.timestamp - b.timestamp); // 确保消息按时间戳升序排序
           
           setConversations(prev =>
             prev.map(conv =>
@@ -428,11 +428,13 @@ export const useChat = () => {
 
       // 创建assistant消息，记录当前使用的模型信息
       assistantMessageId = generateUUID();
+      // 为assistant消息设置稍微晚一点的时间戳，确保用户消息始终排在前面
+      const assistantTimestamp = timestamp + 1;
       assistantMessage = {
         id: assistantMessageId,
         role: 'assistant' as const,
         content: '',
-        timestamp: timestamp,
+        timestamp: assistantTimestamp,
         modelName: activeModel.name,
         modelId: activeModel.id
       };
