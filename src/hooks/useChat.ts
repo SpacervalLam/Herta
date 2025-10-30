@@ -548,13 +548,42 @@ export const useChat = () => {
   }, [currentConversation, isLoading, createNewConversation, generateConversationTitle]);
 
 
-  const stopGeneration = useCallback(() => {
+  const stopGeneration = useCallback(async () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
       setIsLoading(false);
+      
+      // 将已生成的内容保存到数据库
+      if (user && currentConversation && assistantContentRef.current) {
+        try {
+          // 找到最新的助手消息
+          const latestAssistantMessage = currentConversation.messages?.find(m => m.role === 'assistant') || null;
+          if (latestAssistantMessage) {
+            // 保存到数据库
+            await messageService.createMessage({
+              conversationId: currentConversation.id,
+              role: 'assistant',
+              content: assistantContentRef.current,
+              timestamp: new Date(latestAssistantMessage.timestamp),
+              modelName: latestAssistantMessage.modelName,
+              modelId: latestAssistantMessage.modelId
+            });
+            
+            // 更新对话的更新时间戳
+            await conversationService.updateConversation(currentConversation.id, user.id, {
+              updatedAt: new Date(latestAssistantMessage.timestamp)
+            });
+            
+            console.log('成功保存停止生成后的AI回复到数据库');
+          }
+        } catch (dbError) {
+          console.error('保存停止生成后的AI回复失败:', dbError);
+          // 不抛出错误，避免影响用户体验
+        }
+      }
     }
-  }, []);
+  }, [user, currentConversation]);
 
   const exportConversation = useCallback((id: string) => {
     const conversation = conversations.find(c => c.id === id);
