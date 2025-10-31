@@ -6,7 +6,7 @@ import type { Conversation, ChatMessage } from '@/types/chat';
 import type { ModelConfig } from '@/types/model';
 import { MediaAttachment } from '@/types/chat';
 import { useAuth } from '@/contexts/AuthContext';
-import { conversationService, messageService, attachmentService, generateUUID } from '@/services/supabaseService';
+import { conversationService, messageService, attachmentService, generateUUID, supabase } from '@/services/supabaseService';
 
 const STORAGE_KEY = 'ai-chat-conversations'; // 未登录用户使用localStorage
 
@@ -455,7 +455,85 @@ export const useChat = () => {
       // 已登录用户：保存用户消息到数据库
       if (user) {
         try {
-          await messageService.createMessage({
+          // 处理附件上传（如果有base64图片）
+          let processedAttachments: MediaAttachment[] = [];
+          if (attachments && attachments.length > 0) {
+            processedAttachments = await Promise.all(
+              attachments.map(async (attachment) => {
+                // 检查是否为base64图片
+                if (attachment.type === 'image' && attachment.url.startsWith('data:image/')) {
+                  try {
+                    // 从base64中提取MIME类型和数据
+                    const matches = attachment.url.match(/^data:(image\/[^;]+);base64,(.*)$/);
+                    if (!matches) return attachment;
+                    
+                    const mimeType = matches[1];
+                    const base64Data = matches[2];
+                    
+                    // 生成文件名
+                    const fileExtension = mimeType.split('/')[1];
+                    const fileName = attachment.fileName || `image_${Date.now()}.${fileExtension}`;
+                    
+                    // 上传到Supabase存储 - 使用Blob替代Buffer
+                    const blob = new Blob([Uint8Array.from(atob(base64Data), c => c.charCodeAt(0))], { type: mimeType });
+                    
+                    // 尝试多个可能的存储桶名称
+                    const possibleBuckets = ['public', 'avatars', 'attachments'];
+                    let uploadData = null;
+                    let successfulBucket = null;
+                    
+                    // 尝试每个存储桶直到成功
+                    for (const bucket of possibleBuckets) {
+                      const { data, error } = await supabase.storage
+                        .from(bucket)
+                        .upload(`images/${Date.now()}_${fileName}`, blob, {
+                          contentType: mimeType,
+                          cacheControl: '3600',
+                          upsert: false
+                        });
+                       
+                      if (!error) {
+                        uploadData = data;
+                        successfulBucket = bucket; // 记录成功的存储桶名称
+                        break;
+                      }
+                      console.log(`尝试存储桶 ${bucket} 失败:`, error.message);
+                    }
+                    
+                    // 如果所有存储桶都失败，提供更友好的错误处理
+                    if (!uploadData || !successfulBucket) {
+                      console.error('所有存储桶上传都失败');
+                      // 不显示错误提示，因为图片信息仍会保存到数据库
+                      // 只记录日志，让用户可以继续使用base64格式
+                      return attachment; // 失败时使用原始URL
+                    }
+                    
+                    // 获取公共URL
+                    const { data: { publicUrl } } = supabase.storage
+                      .from(successfulBucket)
+                      .getPublicUrl(uploadData.path);
+                    
+                    console.log('附件上传成功:', publicUrl);
+                    return {
+                      ...attachment,
+                      url: publicUrl,
+                      storageKey: uploadData.path
+                    };
+                  } catch (uploadError) {
+                    console.error('处理附件时出错:', uploadError);
+                    return attachment; // 出错时使用原始URL
+                  }
+                }
+                return attachment;
+              })
+            );
+            
+            // 更新用户消息中的附件为已处理的版本
+            userMessage.attachments = processedAttachments;
+          }
+          
+          // 保存消息
+          const savedMessage = await messageService.createMessage({
             conversationId: conversation.id,
             role: 'user',
             content: userMessage.content,
@@ -463,8 +541,24 @@ export const useChat = () => {
             modelName: activeModel.name,
             modelId: activeModel.id
           });
+          
+          // 保存附件（如果有）
+          if (processedAttachments.length > 0) {
+            for (const attachment of processedAttachments) {
+              await attachmentService.createAttachment({
+                messageId: savedMessage.id,
+                type: attachment.type,
+                url: attachment.url,
+                fileName: attachment.fileName,
+                fileSize: attachment.fileSize,
+                storageKey: (attachment as any).storageKey
+              });
+              console.log('附件已保存到数据库:', attachment.fileName);
+            }
+          }
         } catch (dbError) {
-          console.error('Failed to save user message to database:', dbError);
+          console.error('Failed to save user message or attachments to database:', dbError);
+          toast.error('保存消息或附件失败');
         }
       }
 

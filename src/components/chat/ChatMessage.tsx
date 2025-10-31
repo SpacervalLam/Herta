@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import type { ChatMessage as ChatMessageType } from '@/types/chat';
 import MarkdownRenderer from './MarkdownRenderer';
 import { toast } from 'sonner';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -378,6 +378,9 @@ const ChatMessage = memo(({ message, modelName, onRetry, onBranch, onEdit, onDel
       {/* 图片查看对话框 */}
       <Dialog open={imageDialogOpen} onOpenChange={setImageDialogOpen}>
         <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] p-0 bg-background">
+          <div className="sr-only">
+            <DialogTitle>图片预览</DialogTitle>
+          </div>
           {selectedImage && (
             <div className="flex items-center justify-center h-full p-4">
               <img

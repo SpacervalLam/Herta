@@ -601,7 +601,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
         model: modelConfig.modelName || 'claude-3-sonnet-20240229',
         messages: processedMessages.map(msg => ({
           role: msg.role,
-          content: msg.content
+          content: processMultimodalMessage(msg)
         })),
         max_tokens: modelConfig.maxTokens || 4096,
         stream: true
@@ -612,10 +612,39 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
     } else if (modelConfig.modelType === 'gemini') {
       // Google Gemini 格式
       requestBody = {
-        contents: processedMessages.map(msg => ({
-          role: msg.role,
-          parts: [{ text: msg.content }]
-        })),
+        contents: processedMessages.map(msg => {
+          // 处理多模态内容
+          if (msg.attachments?.length) {
+            const parts: any[] = [];
+            
+            // 添加文本内容
+            if (msg.content.trim()) {
+              parts.push({ text: msg.content });
+            }
+            
+            // 添加媒体内容
+            for (const attachment of msg.attachments) {
+              if (attachment.type === 'image') {
+                parts.push({
+                  inline_data: {
+                    mime_type: 'image/jpeg',
+                    data: attachment.url.replace('data:image/jpeg;base64,', '')
+                  }
+                });
+              }
+            }
+            
+            return {
+              role: msg.role,
+              parts
+            };
+          } else {
+            return {
+              role: msg.role,
+              parts: [{ text: msg.content }]
+            };
+          }
+        }),
         generationConfig: {
           maxOutputTokens: modelConfig.maxTokens || 2000,
           temperature: modelConfig.temperature ?? 0.7
@@ -623,72 +652,72 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
         stream: true
       };
     } else if (modelConfig.modelType === 'cohere') {
-      // Cohere 格式
+      // Cohere 格式 - 支持多模态
       requestBody = {
         model: modelConfig.modelName || 'command-r-plus',
         messages: processedMessages.map(msg => ({
           role: msg.role,
-          content: msg.content
+          content: processMultimodalMessage(msg)
         })),
         max_tokens: modelConfig.maxTokens || 2000,
         temperature: modelConfig.temperature ?? 0.7,
         stream: true
       };
     } else if (modelConfig.modelType === 'deepseek') {
-      // DeepSeek 格式
+      // DeepSeek 格式 - 支持多模态
       requestBody = {
         model: modelConfig.modelName || 'deepseek-coder',
         messages: processedMessages.map(msg => ({
           role: msg.role,
-          content: msg.content
+          content: processMultimodalMessage(msg)
         })),
         max_tokens: modelConfig.maxTokens || 2000,
         temperature: modelConfig.temperature ?? 0.7,
         stream: true
       };
     } else if (modelConfig.modelType === 'microsoft') {
-      // Microsoft Phi 格式
+      // Microsoft Phi 格式 - 支持多模态
       requestBody = {
         model: modelConfig.modelName || 'phi-3-mini-4k',
         messages: processedMessages.map(msg => ({
           role: msg.role,
-          content: msg.content
+          content: processMultimodalMessage(msg)
         })),
         max_tokens: modelConfig.maxTokens || 2000,
         temperature: modelConfig.temperature ?? 0.7,
         stream: true
       };
     } else if (modelConfig.modelType === 'perplexity') {
-      // Perplexity 格式
+      // Perplexity 格式 - 支持多模态
       requestBody = {
         model: modelConfig.modelName || 'llama-3-sonar-large-32k-chat',
         messages: processedMessages.map(msg => ({
           role: msg.role,
-          content: msg.content
+          content: processMultimodalMessage(msg)
         })),
         max_tokens: modelConfig.maxTokens || 2000,
         temperature: modelConfig.temperature ?? 0.7,
         stream: true
       };
     } else if (modelConfig.modelType === 'openai') {
-      // OpenAI 标准格式
+      // OpenAI 标准格式 - 支持多模态
       requestBody = {
         model: modelConfig.modelName || 'gpt-4',
         messages: processedMessages.map(msg => ({
           role: msg.role,
-          content: msg.content
+          content: processMultimodalMessage(msg)
         })),
         max_tokens: modelConfig.maxTokens,
         temperature: modelConfig.temperature,
         stream: true
       };
     } else {
-      // 其他模型默认使用OpenAI兼容格式
+      // 其他模型默认使用OpenAI兼容格式 - 支持多模态
       requestBody = {
         model: modelConfig.modelName || 'gpt-4',
         messages: processedMessages.map(msg => ({
           role: msg.role,
-          content: msg.content
+          content: processMultimodalMessage(msg)
         })),
         max_tokens: modelConfig.maxTokens,
         temperature: modelConfig.temperature,
