@@ -145,7 +145,7 @@ const processMultimodalMessage = (message: ChatMessage): any => {
     return message.content;
   }
 
-  const content = [];
+  const content: any[] = [];
 
   // 添加媒体内容
   for (const attachment of message.attachments) {
@@ -180,8 +180,6 @@ const processMultimodalMessage = (message: ChatMessage): any => {
 
   return content;
 };
-
-// 直接使用默认请求体构建和响应解析逻辑
 
 // 百度千帆API响应解析
 const parseBaiduQianfanResponse = (parsed: any): string => {
@@ -279,6 +277,10 @@ const parseDefaultResponse = (parsed: any, modelConfig?: ModelConfig): string =>
       } else if (parsed.choices && parsed.choices[0]) {
         // 兼容OpenAI的本地模型
         return parsed.choices[0].message?.content || parsed.choices[0].text || '';
+      } else if (parsed.message?.content) {
+        return parsed.message.content;
+      } else if (parsed.delta?.content) {
+        return parsed.delta.content;
       }
     }
 
@@ -409,7 +411,6 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
   let currentContent = '';
 
   // 特殊处理：如果是百度千帆API，先尝试流式请求，失败则回退到非流式
-
   const sseHook = createSSEHook({
     onData: (data: string) => {
       try {
@@ -506,18 +507,18 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       }
 
       console.log('发送API请求', { apiUrl: modelConfig.apiUrl, requestSize: JSON.stringify(requestBody).length });
-      
+
       // 确定请求URL - 支持代理配置
       let requestUrl = modelConfig.apiUrl;
       // 对于需要代理的外部API，使用代理服务器
-      if (modelConfig.proxyUrl && 
-          (modelConfig.apiUrl.includes('api.openai.com') || 
-           modelConfig.apiUrl.includes('anthropic.com') || 
-           modelConfig.apiUrl.includes('googleapis.com'))) {
+      if (modelConfig.proxyUrl &&
+        (modelConfig.apiUrl.includes('api.openai.com') ||
+          modelConfig.apiUrl.includes('anthropic.com') ||
+          modelConfig.apiUrl.includes('googleapis.com'))) {
         console.log('使用代理服务器发送非流式请求');
         requestUrl = modelConfig.proxyUrl;
       }
-      
+
       const response = await ky.post(requestUrl, {
         json: requestBody,
         headers,
@@ -568,6 +569,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
         requestBody.temperature = modelConfig.temperature;
       }
       if (modelConfig.maxTokens && modelConfig.maxTokens > 0) {
+        // Ollama 的参数名可能不同，但保留为 num_predict 兼容部分本地实现
         requestBody.num_predict = modelConfig.maxTokens;
       }
 
@@ -593,7 +595,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
         messages: processedMessages.map(msg => {
           // 使用通用的多模态消息处理函数
           const content = processMultimodalMessage(msg);
-          
+
           return {
             role: msg.role,
             content: content
@@ -611,10 +613,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       // Anthropic Claude 格式
       requestBody = {
         model: modelConfig.modelName || 'claude-3-sonnet-20240229',
-        messages: processedMessages.map(msg => ({
-          role: msg.role,
-          content: processMultimodalMessage(msg)
-        })),
+        messages: processedMessages.map(msg => ({ role: msg.role, content: processMultimodalMessage(msg) })),
         max_tokens: modelConfig.maxTokens || 4096,
         stream: true
       };
@@ -628,12 +627,12 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
           // 处理多模态内容
           if (msg.attachments?.length) {
             const parts: any[] = [];
-            
+
             // 添加文本内容
             if (msg.content.trim()) {
               parts.push({ text: msg.content });
             }
-            
+
             // 添加媒体内容
             for (const attachment of msg.attachments) {
               if (attachment.type === 'image') {
@@ -645,7 +644,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
                 });
               }
             }
-            
+
             return {
               role: msg.role,
               parts
@@ -667,10 +666,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       // Cohere 格式 - 支持多模态
       requestBody = {
         model: modelConfig.modelName || 'command-r-plus',
-        messages: processedMessages.map(msg => ({
-          role: msg.role,
-          content: processMultimodalMessage(msg)
-        })),
+        messages: processedMessages.map(msg => ({ role: msg.role, content: processMultimodalMessage(msg) })),
         max_tokens: modelConfig.maxTokens || 2000,
         temperature: modelConfig.temperature ?? 0.7,
         stream: true
@@ -679,10 +675,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       // DeepSeek 格式 - 支持多模态
       requestBody = {
         model: modelConfig.modelName || 'deepseek-coder',
-        messages: processedMessages.map(msg => ({
-          role: msg.role,
-          content: processMultimodalMessage(msg)
-        })),
+        messages: processedMessages.map(msg => ({ role: msg.role, content: processMultimodalMessage(msg) })),
         max_tokens: modelConfig.maxTokens || 2000,
         temperature: modelConfig.temperature ?? 0.7,
         stream: true
@@ -691,10 +684,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       // Microsoft Phi 格式 - 支持多模态
       requestBody = {
         model: modelConfig.modelName || 'phi-3-mini-4k',
-        messages: processedMessages.map(msg => ({
-          role: msg.role,
-          content: processMultimodalMessage(msg)
-        })),
+        messages: processedMessages.map(msg => ({ role: msg.role, content: processMultimodalMessage(msg) })),
         max_tokens: modelConfig.maxTokens || 2000,
         temperature: modelConfig.temperature ?? 0.7,
         stream: true
@@ -703,10 +693,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       // Perplexity 格式 - 支持多模态
       requestBody = {
         model: modelConfig.modelName || 'llama-3-sonar-large-32k-chat',
-        messages: processedMessages.map(msg => ({
-          role: msg.role,
-          content: processMultimodalMessage(msg)
-        })),
+        messages: processedMessages.map(msg => ({ role: msg.role, content: processMultimodalMessage(msg) })),
         max_tokens: modelConfig.maxTokens || 2000,
         temperature: modelConfig.temperature ?? 0.7,
         stream: true
@@ -715,10 +702,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       // OpenAI 标准格式 - 支持多模态
       requestBody = {
         model: modelConfig.modelName || 'gpt-4',
-        messages: processedMessages.map(msg => ({
-          role: msg.role,
-          content: processMultimodalMessage(msg)
-        })),
+        messages: processedMessages.map(msg => ({ role: msg.role, content: processMultimodalMessage(msg) })),
         max_tokens: modelConfig.maxTokens,
         temperature: modelConfig.temperature,
         stream: true
@@ -727,10 +711,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       // 其他模型默认使用OpenAI兼容格式 - 支持多模态
       requestBody = {
         model: modelConfig.modelName || 'gpt-4',
-        messages: processedMessages.map(msg => ({
-          role: msg.role,
-          content: processMultimodalMessage(msg)
-        })),
+        messages: processedMessages.map(msg => ({ role: msg.role, content: processMultimodalMessage(msg) })),
         max_tokens: modelConfig.maxTokens,
         temperature: modelConfig.temperature,
         stream: true
@@ -755,8 +736,9 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
         // OpenAI认证
         headers['Authorization'] = `Bearer ${apiKey}`;
       } else if (modelConfig.modelType === 'local') {
-        // 本地模型认证
-        headers['Authorization'] = `Bearer ${apiKey || 'ollama'}`;
+        // 本地模型通常不需要 Authorization 头（不再自动添加）
+        // 如果确实需要自定义认证，请在 modelConfig 中明确设置并在外部填入 headers。
+        // do nothing
       } else if (modelConfig.modelType === 'gemini') {
         // Google Gemini认证
         headers['Authorization'] = `Bearer ${apiKey}`;
@@ -778,24 +760,127 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       }
     }
 
+    // ---- 如果是本地 Ollama 模型，使用 fetch + 手动流式解析 NDJSON ----
+    if (modelConfig.modelType === 'local') {
+      try {
+        // 确保 URL 指向 /api/chat（如果用户配置了基础地址）
+        let requestUrl = modelConfig.apiUrl || 'http://localhost:11434';
+        requestUrl = requestUrl.replace(/\/$/, '');
+        if (!requestUrl.endsWith('/api/chat') && !requestUrl.endsWith('/api/generate')) {
+          requestUrl = `${requestUrl}/api/chat`;
+        }
+
+        console.log('使用本地流式请求 (Ollama) URL:', requestUrl);
+
+        const fetchResponse = await fetch(requestUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(requestBody),
+          signal
+        });
+
+        if (!fetchResponse.ok) {
+          const text = await fetchResponse.text().catch(() => '');
+          const msg = `本地模型请求失败: ${fetchResponse.status} ${fetchResponse.statusText} ${text}`;
+          console.error(msg);
+          onError(new Error(msg));
+          return;
+        }
+
+        if (!fetchResponse.body) {
+          onError(new Error('本地模型响应体为空'));
+          return;
+        }
+
+        const reader = fetchResponse.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let done = false;
+        let accumulated = '';
+
+        while (!done) {
+          const { value, done: streamDone } = await reader.read();
+          if (streamDone) {
+            done = true;
+            break;
+          }
+          if (!value) continue;
+
+          const chunk = decoder.decode(value, { stream: true });
+          // NDJSON 可能会把多个 JSON 对象拼在一起或被切分，按行处理
+          const lines = chunk.split(/\r?\n/).filter(line => line.trim() !== '');
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed === '[DONE]' || trimmed === 'data: [DONE]') {
+              continue;
+            }
+            try {
+              const parsed = JSON.parse(trimmed);
+              // 尝试多字段提取（兼容不同版本的返回格式）
+              let piece = '';
+
+              // 优先使用通用解析器尝试提取
+              piece = parseDefaultResponse(parsed, modelConfig) || '';
+
+              // 如果 parseDefaultResponse 没能提取到内容，尝试一些常见字段
+              if (!piece) {
+                if (parsed.message?.content) {
+                  piece = parsed.message.content;
+                } else if (parsed.delta?.content) {
+                  piece = parsed.delta.content;
+                } else if (parsed.choices?.[0]?.delta?.content) {
+                  piece = parsed.choices[0].delta.content;
+                } else if (parsed.choices?.[0]?.message?.content) {
+                  piece = parsed.choices[0].message.content;
+                } else if (parsed.response) {
+                  piece = parsed.response;
+                } else if (parsed.output) {
+                  piece = parsed.output;
+                }
+              }
+
+              if (piece) {
+                accumulated += piece;
+                onUpdate(accumulated);
+              }
+            } catch (err) {
+              // 有时行可能不是纯 JSON，静默忽略
+            }
+          }
+        }
+
+        onComplete();
+        return; // 本地处理完后直接返回，避免走 ky.post
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') {
+          // 中止，由调用方处理
+          console.warn('本地请求被中止');
+          return;
+        }
+        console.error('本地模型流式请求出错:', err);
+        onError(err instanceof Error ? err : new Error('本地模型请求失败'));
+        return;
+      }
+    }
+
     // ---- 调试信息已移除 ----
 
     try {
       // ---- 发送请求 ----
       // 为百度千帆API增加超时设置和重试机制
       const timeout = modelConfig.modelType === 'baidu' ? 120000 : undefined; // 百度模型增加到120秒超时
-      
+
       // 确定请求URL - 支持代理配置
       let requestUrl = modelConfig.apiUrl;
       // 对于需要代理的外部API，使用代理服务器
-      if (modelConfig.proxyUrl && 
-          (modelConfig.apiUrl.includes('api.openai.com') || 
-           modelConfig.apiUrl.includes('anthropic.com') || 
-           modelConfig.apiUrl.includes('googleapis.com'))) {
+      if (modelConfig.proxyUrl &&
+        (modelConfig.apiUrl.includes('api.openai.com') ||
+          modelConfig.apiUrl.includes('anthropic.com') ||
+          modelConfig.apiUrl.includes('googleapis.com'))) {
         console.log('使用代理服务器发送请求');
         requestUrl = modelConfig.proxyUrl;
       }
-      
+
       // 添加重试配置
       await ky.post(requestUrl, {
         json: requestBody,
@@ -811,7 +896,6 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
           afterResponse: [sseHook]
         }
       });
-
     } catch (error) {
       if (!signal?.aborted) {
         // 只记录错误详情到控制台，不传递原始错误消息到用户界面
@@ -823,9 +907,9 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
               'UnknownError'
         };
         console.error('发送请求出错:', errorDetails);
-        
+
         const is401Error = error instanceof Error && (error.message.includes('401') || error.message.toLowerCase().includes('unauthorized'));
-        
+
         if (is401Error) {
           onError(new Error('API密钥无效或已过期，请检查您的认证信息'));
         } else {
@@ -842,5 +926,4 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
     // 清理资源
     console.log('sendChatStream 函数执行完成');
   }
-}
-
+};

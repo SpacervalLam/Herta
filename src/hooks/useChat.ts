@@ -454,8 +454,10 @@ export const useChat = () => {
         )
       );
 
-      // 已登录用户：保存用户消息到数据库
-      if (user) {
+      // 并行处理数据库保存和API请求
+      const saveToDatabase = async () => {
+        if (!user) return;
+        
         try {
           // 处理附件上传（如果有base64图片）
           let processedAttachments: MediaAttachment[] = [];
@@ -493,7 +495,7 @@ export const useChat = () => {
                           cacheControl: '3600',
                           upsert: false
                         });
-                       
+                        
                       if (!error) {
                         uploadData = data;
                         successfulBucket = bucket; // 记录成功的存储桶名称
@@ -529,12 +531,15 @@ export const useChat = () => {
                 return attachment;
               })
             );
-            
-            // 更新用户消息中的附件为已处理的版本
-            userMessage.attachments = processedAttachments;
           }
           
           // 保存消息
+          // 添加空值检查，确保安全访问属性
+          if (!conversation || !activeModel) {
+            console.error('无法保存消息：缺少必要的对话或模型信息');
+            return;
+          }
+          
           const savedMessage = await messageService.createMessage({
             conversationId: conversation.id,
             role: 'user',
@@ -558,11 +563,16 @@ export const useChat = () => {
               console.log('附件已保存到数据库:', attachment.fileName);
             }
           }
+          
+          console.log('用户消息已成功保存到数据库');
         } catch (dbError) {
           console.error('Failed to save user message or attachments to database:', dbError);
           toast.error('保存消息或附件失败');
         }
-      }
+      };
+
+      // 立即开始数据库保存（不等待完成）
+      saveToDatabase();
 
       setIsLoading(true);
       abortControllerRef.current = new AbortController();
