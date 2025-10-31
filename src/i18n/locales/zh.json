@@ -20,7 +20,8 @@
     "error": "错误",
     "success": "成功",
     "warning": "警告",
-    "info": "信息"
+    "info": "信息",
+    "add": "上传附件"
   },
   "auth": {
     "fillAllFields": "请填写所有字段",

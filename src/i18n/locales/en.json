@@ -20,7 +20,8 @@
     "error": "Error",
     "success": "Success",
     "warning": "Warning",
-    "info": "Info"
+    "info": "Info",
+    "add": "Add Attachment"
   },
   "auth": {
     "fillAllFields": "Please fill all fields",

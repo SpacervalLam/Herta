@@ -407,8 +407,14 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                         <SelectContent>
                           <SelectItem value="openai">OpenAI</SelectItem>
                           <SelectItem value="claude">Claude</SelectItem>
+                          <SelectItem value="anthropic">Anthropic</SelectItem>
+                          <SelectItem value="anthropic-vertex">Anthropic Vertex</SelectItem>
                           <SelectItem value="gemini">Gemini</SelectItem>
                           <SelectItem value="baidu">百度文心</SelectItem>
+                          <SelectItem value="cohere">Cohere</SelectItem>
+                          <SelectItem value="deepseek">DeepSeek</SelectItem>
+                          <SelectItem value="microsoft">Microsoft</SelectItem>
+                          <SelectItem value="perplexity">Perplexity</SelectItem>
                           <SelectItem value="local">本地模型</SelectItem>
                           <SelectItem value="custom">自定义</SelectItem>
                         </SelectContent>
@@ -526,208 +532,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                           </div>
                         </div>
 
-                        {/* 自定义请求配置 */}
-                        <div className="space-y-2">
-                          <Label>{t('model.customRequestBody')}</Label>
-                          <div className="flex items-center space-x-2">
-                            <Switch
-                              checked={editingModel.customRequestConfig?.enabled || false}
-                              onCheckedChange={checked => {
-                                const customConfig = editingModel.customRequestConfig || {
-                                  enabled: false,
-                                  requestBodyTemplate: '',
-                                  headers: {},
-                                  responseParser: {
-                                    contentPath: 'choices[0].message.content',
-                                    errorPath: 'error.message',
-                                    usagePath: 'usage'
-                                  }
-                                };
-                                setEditingModel({ 
-                                  ...editingModel, 
-                                  customRequestConfig: { ...customConfig, enabled: checked }
-                                });
-                              }}
-                            />
-                            <span className="text-sm text-muted-foreground">
-                              {t('model.customRequestBodyHelp')}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* 自定义请求体配置详情 */}
-                        {editingModel.customRequestConfig?.enabled && (
-                          <div className="space-y-4 pl-4 border-l-2 border-muted">
-                            {/* 请求体模板 */}
-                            <div className="space-y-2">
-                              <Label>{t('model.requestBodyTemplate')}</Label>
-                              <Textarea
-                                value={editingModel.customRequestConfig?.requestBodyTemplate || ''}
-                                onChange={e => {
-                                  const customConfig = editingModel.customRequestConfig || {
-                                    enabled: true,
-                                    requestBodyTemplate: '',
-                                    headers: {},
-                                    responseParser: {
-                                      contentPath: 'choices[0].message.content',
-                                      errorPath: 'error.message',
-                                      usagePath: 'usage'
-                                    }
-                                  };
-                                  setEditingModel({
-                                    ...editingModel,
-                                    customRequestConfig: {
-                                      ...customConfig,
-                                      requestBodyTemplate: e.target.value
-                                    }
-                                  });
-                                }}
-                                placeholder={`{
-  "model": "{{modelName}}",
-  "messages": {{messages}},
-  "max_tokens": {{maxTokens}},
-  "temperature": {{temperature}}
-}`}
-                                rows={8}
-                                className="font-mono text-sm"
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                {t('model.requestBodyTemplatePlaceholder')}
-                              </p>
-                            </div>
-
-                            {/* 自定义请求头 */}
-                            <div className="space-y-2">
-                              <Label>{t('model.customHeaders')}</Label>
-                              <Textarea
-                                value={editingModel.customRequestConfig?.headers && Object.keys(editingModel.customRequestConfig.headers).length > 0
-                                  ? JSON.stringify(editingModel.customRequestConfig.headers, null, 2)
-                                  : ''}
-                                onChange={e => {
-                                  try {
-                                    const headers = e.target.value.trim() ? JSON.parse(e.target.value) : {};
-                                    const customConfig = editingModel.customRequestConfig || {
-                                      enabled: true,
-                                      requestBodyTemplate: '',
-                                      headers: {},
-                                      responseParser: {
-                                        contentPath: 'choices[0].message.content',
-                                        errorPath: 'error.message',
-                                        usagePath: 'usage'
-                                      }
-                                    };
-                                    setEditingModel({
-                                      ...editingModel,
-                                      customRequestConfig: {
-                                        ...customConfig,
-                                        headers
-                                      }
-                                    });
-                                  } catch (error) {
-                                    // 忽略JSON解析错误，让用户继续编辑
-                                  }
-                                }}
-                                placeholder={`{
-  "Authorization": "{{apiKey}}",
-  "Content-Type": "application/json"
-}`}
-                                rows={4}
-                                className="font-mono text-sm"
-                              />
-                            </div>
-
-                            {/* 响应解析配置 */}
-                            <div className="grid grid-cols-3 gap-4">
-                              <div className="space-y-2">
-                                <Label>{t('model.contentPath')}</Label>
-                                <Input
-                                  value={editingModel.customRequestConfig?.responseParser?.contentPath || ''}
-                                  onChange={e => {
-                                    const customConfig = editingModel.customRequestConfig || {
-                                      enabled: true,
-                                      requestBodyTemplate: '',
-                                      headers: {},
-                                      responseParser: {
-                                        contentPath: 'choices[0].message.content',
-                                        errorPath: 'error.message',
-                                        usagePath: 'usage'
-                                      }
-                                    };
-                                    setEditingModel({
-                                      ...editingModel,
-                                      customRequestConfig: {
-                                        ...customConfig,
-                                        responseParser: {
-                                          ...customConfig.responseParser!,
-                                          contentPath: e.target.value
-                                        }
-                                      }
-                                    });
-                                  }}
-                                  placeholder={t('model.contentPathPlaceholder')}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>{t('model.errorPath')}</Label>
-                                <Input
-                                  value={editingModel.customRequestConfig?.responseParser?.errorPath || ''}
-                                  onChange={e => {
-                                    const customConfig = editingModel.customRequestConfig || {
-                                      enabled: true,
-                                      requestBodyTemplate: '',
-                                      headers: {},
-                                      responseParser: {
-                                        contentPath: 'choices[0].message.content',
-                                        errorPath: 'error.message',
-                                        usagePath: 'usage'
-                                      }
-                                    };
-                                    setEditingModel({
-                                      ...editingModel,
-                                      customRequestConfig: {
-                                        ...customConfig,
-                                        responseParser: {
-                                          ...customConfig.responseParser!,
-                                          errorPath: e.target.value
-                                        }
-                                      }
-                                    });
-                                  }}
-                                  placeholder={t('model.errorPathPlaceholder')}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>{t('model.usagePath')}</Label>
-                                <Input
-                                  value={editingModel.customRequestConfig?.responseParser?.usagePath || ''}
-                                  onChange={e => {
-                                    const customConfig = editingModel.customRequestConfig || {
-                                      enabled: true,
-                                      requestBodyTemplate: '',
-                                      headers: {},
-                                      responseParser: {
-                                        contentPath: 'choices[0].message.content',
-                                        errorPath: 'error.message',
-                                        usagePath: 'usage'
-                                      }
-                                    };
-                                    setEditingModel({
-                                      ...editingModel,
-                                      customRequestConfig: {
-                                        ...customConfig,
-                                        responseParser: {
-                                          ...customConfig.responseParser!,
-                                          usagePath: e.target.value
-                                        }
-                                      }
-                                    });
-                                  }}
-                                  placeholder={t('model.usagePathPlaceholder')}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                        {/* 高级配置部分结束 */}
                       </div>
                     )}
                   </div>

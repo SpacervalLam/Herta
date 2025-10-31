@@ -1,7 +1,7 @@
 import ky, { type KyResponse, type AfterResponseHook, type NormalizedOptions } from 'ky';
 import { createParser, type EventSourceParser } from 'eventsource-parser';
 import type { ChatMessage } from '@/types/chat';
-import type { ModelConfig, CustomRequestConfig } from '@/types/model';
+import type { ModelConfig } from '@/types/model';
 import { getModelConfig } from '@/utils/modelStorage';
 
 // 翻译提示词前缀标识 - 与translationService保持一致
@@ -81,7 +81,7 @@ export const createSSEHook = (options: SSEOptions): AfterResponseHook => {
                 if (line.trim() === '[DONE]' || line.trim() === 'data: [DONE]') {
                   continue;
                 }
-                
+
                 try {
                   JSON.parse(line);
                   options.onData(line);
@@ -96,9 +96,9 @@ export const createSSEHook = (options: SSEOptions): AfterResponseHook => {
             for (const line of lines) {
               // 检查是否是结束标记
               if (line.trim() === '[DONE]' || line.trim() === 'data: [DONE]') {
-                  continue;
-                }
-              
+                continue;
+              }
+
               try {
                 JSON.parse(line);
                 options.onData(line);
@@ -146,7 +146,7 @@ const processMultimodalMessage = (message: ChatMessage): any => {
   }
 
   const content = [];
-  
+
   // 添加媒体内容
   for (const attachment of message.attachments) {
     if (attachment.type === 'image') {
@@ -181,107 +181,7 @@ const processMultimodalMessage = (message: ChatMessage): any => {
   return content;
 };
 
-// 构建自定义请求体
-const buildCustomRequestBody = (
-  template: string,
-  messages: ChatMessage[],
-  modelConfig: ModelConfig,
-  apiKey?: string
-): any => {
-  console.log('开始构建自定义请求体', { 
-    modelId: modelConfig.id, 
-    modelType: modelConfig.modelType, 
-    modelName: modelConfig.modelName || modelConfig.name,
-    messageCount: messages.length,
-    hasApiKey: !!apiKey
-  });
-  
-  // 处理消息格式
-  const processedMessages = messages.map(msg => {
-    // 特殊处理：只有百度千帆API需要多模态格式
-    if (modelConfig.modelType === 'baidu' || modelConfig.apiUrl.includes('qianfan.baidubce.com')) {
-      const processedContent = processMultimodalMessage(msg);
-      console.log('处理百度千帆API多模态消息', { role: msg.role, hasAttachments: !!msg.attachments?.length });
-      return {
-        role: msg.role,
-        content: processedContent
-      };
-    } else {
-      // 其他模型（包括Ollama）使用原始消息格式
-      return {
-        role: msg.role,
-        content: msg.content
-      };
-    }
-  });
-
-  // 替换模板变量
-  let requestBodyStr = template
-    .replace(/\{\{modelName\}\}/g, modelConfig.modelName || modelConfig.name)
-    .replace(/\{\{messages\}\}/g, JSON.stringify(processedMessages))
-    .replace(/\{\{maxTokens\}\}/g, String(modelConfig.maxTokens || 2000))
-    .replace(/\{\{temperature\}\}/g, String(modelConfig.temperature || 0.7))
-    .replace(/\{\{apiKey\}\}/g, apiKey ? '[REDACTED]' : '');
-
-  // 特殊处理：如果是百度千帆API，先尝试非流式请求
-  if (modelConfig.apiUrl.includes('qianfan.baidubce.com')) {
-    try {
-      const requestBody = JSON.parse(requestBodyStr);
-      // 百度千帆可能不支持流式响应，先尝试非流式
-      if (requestBody.hasOwnProperty('stream')) {
-        console.log('百度千帆API请求，禁用stream参数', { modelId: modelConfig.id });
-        delete requestBody.stream;
-        requestBodyStr = JSON.stringify(requestBody);
-      }
-    } catch (error: unknown) {
-    // 静默处理错误
-    console.warn('百度千帆API请求体预处理失败', { error: error instanceof Error ? error.message : String(error) });
-    }
-  }
-
-  try {
-    console.log('自定义请求体构建成功', { modelId: modelConfig.id });
-    return JSON.parse(requestBodyStr);
-  } catch (error: unknown) {
-    console.error('自定义请求体模板解析失败', { 
-      error: error instanceof Error ? error.message : String(error), 
-      modelId: modelConfig.id,
-      templateLength: template.length
-    });
-    throw new Error(`自定义请求体模板解析失败: ${error instanceof Error ? error.message : String(error)}`);
-  }
-};
-
-// 解析自定义响应
-const parseCustomResponse = (data: string, responseParser: CustomRequestConfig['responseParser']): string => {
-  try {
-    const parsed = JSON.parse(data);
-    
-    if (!responseParser) {
-      // 使用默认解析逻辑
-      return parseDefaultResponse(parsed);
-    }
-
-    // 使用自定义路径解析
-    const content = getNestedValue(parsed, responseParser.contentPath);
-    return content || '';
-  } catch (error) {
-      // 静默处理解析错误
-      return '';
-    }
-};
-
-// 获取嵌套值
-const getNestedValue = (obj: any, path: string): any => {
-  return path.split('.').reduce((current, key) => {
-    if (key.includes('[') && key.includes(']')) {
-      const arrayKey = key.substring(0, key.indexOf('['));
-      const index = parseInt(key.substring(key.indexOf('[') + 1, key.indexOf(']')));
-      return current?.[arrayKey]?.[index];
-    }
-    return current?.[key];
-  }, obj);
-};
+// 直接使用默认请求体构建和响应解析逻辑
 
 // 百度千帆API响应解析
 const parseBaiduQianfanResponse = (parsed: any): string => {
@@ -301,49 +201,130 @@ const parseBaiduQianfanResponse = (parsed: any): string => {
   else if (parsed.error) {
     return '';
   }
-  
+
   return '';
 };
 
-// 默认响应解析
-const parseDefaultResponse = (parsed: any): string => {
-  // OpenAI格式
-  if (parsed.choices?.[0]?.delta?.content) {
-    return parsed.choices[0].delta.content;
+// 解析默认格式的响应（适用于OpenAI、Claude、Gemini、Cohere等多种模型）
+const parseDefaultResponse = (parsed: any, modelConfig?: ModelConfig): string => {
+  try {
+    // 处理错误响应
+    if (parsed.error) {
+      console.warn('API错误响应:', parsed.error);
+      return '';
+    }
+
+    // 根据模型类型进行特定处理
+    const modelType = modelConfig?.modelType;
+
+    // Claude和Anthropic模型响应格式
+    if (modelType === 'claude' || modelType === 'anthropic' || modelType === 'anthropic-vertex') {
+      if (parsed.content && Array.isArray(parsed.content)) {
+        // Claude完整响应格式
+        return parsed.content.map((c: any) => c.text || '').join('');
+      } else if (parsed.delta?.content && Array.isArray(parsed.delta.content)) {
+        // Claude流式响应格式
+        return parsed.delta.content.map((c: any) => c.text || '').join('');
+      }
+    }
+
+    // Google Gemini模型响应格式
+    if (modelType === 'gemini') {
+      if (parsed.candidates && parsed.candidates[0]?.content?.parts) {
+        // Gemini完整响应格式
+        return parsed.candidates[0].content.parts.map((p: any) => p.text || '').join('');
+      } else if (parsed.candidates && parsed.candidates[0]?.content) {
+        // Gemini简化响应格式
+        return parsed.candidates[0].content;
+      }
+    }
+
+    // Cohere模型响应格式
+    if (modelType === 'cohere') {
+      if (parsed.text) {
+        // Cohere完整响应格式
+        return parsed.text;
+      } else if (parsed.generations && parsed.generations[0]) {
+        // Cohere替代格式
+        return parsed.generations[0].text || '';
+      }
+    }
+
+    // DeepSeek模型响应格式
+    if (modelType === 'deepseek') {
+      if (parsed.choices && parsed.choices[0]) {
+        return parsed.choices[0].message?.content || parsed.choices[0].text || '';
+      }
+    }
+
+    // Microsoft模型响应格式
+    if (modelType === 'microsoft') {
+      if (parsed.choices && parsed.choices[0]) {
+        return parsed.choices[0].message?.content || parsed.choices[0].text || '';
+      }
+    }
+
+    // Perplexity模型响应格式
+    if (modelType === 'perplexity') {
+      if (parsed.choices && parsed.choices[0]) {
+        return parsed.choices[0].message?.content || parsed.choices[0].text || '';
+      }
+    }
+
+    // 本地模型响应格式（如Ollama）
+    if (modelType === 'local') {
+      if (parsed.response) {
+        // Ollama格式
+        return parsed.response;
+      } else if (parsed.choices && parsed.choices[0]) {
+        // 兼容OpenAI的本地模型
+        return parsed.choices[0].message?.content || parsed.choices[0].text || '';
+      }
+    }
+
+    // OpenAI标准响应格式和通用格式
+    // OpenAI格式
+    if (parsed.choices?.[0]?.delta?.content) {
+      return parsed.choices[0].delta.content;
+    }
+    // Claude格式
+    else if (parsed.delta?.text) {
+      return parsed.delta.text;
+    }
+    // Gemini格式
+    else if (parsed.candidates?.[0]?.content?.parts?.[0]?.text) {
+      return parsed.candidates[0].content.parts[0].text;
+    }
+    // Ollama格式
+    else if (parsed.message?.content) {
+      return parsed.message.content;
+    }
+    // 百度千帆格式
+    else if (parsed.result) {
+      return parsed.result;
+    }
+    // 其他格式
+    else if (parsed.output) {
+      return parsed.output;
+    }
+    else if (parsed.content) {
+      return parsed.content;
+    }
+    else if (parsed.text) {
+      return parsed.text;
+    }
+
+    // 兜底返回
+    return '';
+  } catch (error) {
+    console.error('解析默认响应错误:', error);
+    return '';
   }
-  // Claude格式
-  else if (parsed.delta?.text) {
-    return parsed.delta.text;
-  }
-  // Gemini格式
-  else if (parsed.candidates?.[0]?.content?.parts?.[0]?.text) {
-    return parsed.candidates[0].content.parts[0].text;
-  }
-  // Ollama格式
-  else if (parsed.message?.content) {
-    return parsed.message.content;
-  }
-  // 百度千帆格式
-  else if (parsed.result) {
-    return parsed.result;
-  }
-  // 其他格式
-  else if (parsed.output) {
-    return parsed.output;
-  }
-  else if (parsed.content) {
-    return parsed.content;
-  }
-  else if (parsed.text) {
-    return parsed.text;
-  }
-  
-  return '';
 };
 
 export const sendChatStream = async (options: ChatStreamOptions): Promise<void> => {
-  console.log('开始发送聊天流请求', { 
-    modelId: options.modelConfig?.id, 
+  console.log('开始发送聊天流请求', {
+    modelId: options.modelConfig?.id,
     modelName: options.modelConfig?.name || options.modelConfig?.modelName,
     modelType: options.modelConfig?.modelType,
     messageCount: options.messages?.length || 0,
@@ -353,11 +334,11 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
   });
 
   const { messages, onUpdate, onComplete, onError, signal, modelConfig, apiKey: providedApiKey, userId } = options;
-  
+
   // 记录最后一条用户消息内容预览
   const lastUserMessage = messages.filter(msg => msg.role === 'user').pop();
   if (lastUserMessage) {
-    console.log('用户输入内容预览', { 
+    console.log('用户输入内容预览', {
       content: lastUserMessage.content.substring(0, 100) + (lastUserMessage.content.length > 100 ? '...' : ''),
       hasAttachments: !!lastUserMessage.attachments?.length
     });
@@ -365,7 +346,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
 
   // 处理消息列表，支持翻译提示词
   let processedMessages = [...messages];
-  
+
   // 如果没有提供API key，尝试从当前活动模型获取
   let apiKey = providedApiKey;
   if (!apiKey && modelConfig?.id && userId) {
@@ -380,7 +361,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
   } else if (!apiKey && !userId) {
     console.warn('无法获取API key：用户未登录');
   }
-  
+
   // 检查最后一条用户消息是否需要处理翻译提示词
   if (processedMessages.length > 0 && processedMessages[processedMessages.length - 1].role === 'user') {
     const lastMessage = processedMessages[processedMessages.length - 1];
@@ -397,7 +378,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
         const lines = lastMessage.content.split('\n');
         let promptLine = '';
         let contentLines: string[] = [];
-        
+
         // 分离提示词行和内容行
         for (const line of lines) {
           if (line.startsWith('TRANSLATE_FROM_')) {
@@ -406,7 +387,7 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
             contentLines.push(line);
           }
         }
-        
+
         if (promptLine) {
           // 更新最后一条消息为纯内容
           processedMessages[processedMessages.length - 1] = {
@@ -445,19 +426,15 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
 
         let content = '';
 
-        // 检查是否使用自定义请求配置
-        if (modelConfig.customRequestConfig?.enabled && modelConfig.customRequestConfig.responseParser) {
-          content = parseCustomResponse(cleanData, modelConfig.customRequestConfig.responseParser);
+        // 使用默认解析逻辑
+        const parsed = JSON.parse(cleanData);
+
+        // 特殊处理不同模型API的响应格式
+        if (modelConfig.apiUrl.includes('qianfan.baidubce.com') || modelConfig.modelType === 'baidu') {
+          content = parseBaiduQianfanResponse(parsed);
         } else {
-          // 使用默认解析逻辑
-          const parsed = JSON.parse(cleanData);
-          
-          // 特殊处理百度千帆API的流式响应
-          if (modelConfig.apiUrl.includes('qianfan.baidubce.com')) {
-            content = parseBaiduQianfanResponse(parsed);
-          } else {
-            content = parseDefaultResponse(parsed);
-          }
+          // 使用增强的默认响应解析器，传入modelConfig以支持多种模型类型
+          content = parseDefaultResponse(parsed, modelConfig);
         }
 
         if (content) {
@@ -469,8 +446,8 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
           onUpdate(currentContent);
         }
       } catch (error) {
-            // 静默处理解析错误
-          }
+        // 静默处理解析错误
+      }
     },
     onCompleted: (error?: Error) => {
       if (error) {
@@ -492,23 +469,31 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
   const fallbackToNonStreaming = async () => {
     try {
       console.log('开始百度千帆非流式API回退请求', { modelId: modelConfig.id });
-      
-      const requestBody = buildCustomRequestBody(
-        modelConfig.customRequestConfig?.requestBodyTemplate || '{"model": "{{modelName}}", "messages": {{messages}}}',
-        processedMessages,
-        modelConfig,
-        apiKey
-      );
-      
-      // 移除stream参数
-      if (requestBody.stream) {
-        delete requestBody.stream;
+
+      // 构建百度千帆请求体
+      let requestBody: {
+        model: string;
+        messages: Array<{ role: string; content: string }>;
+        max_output_tokens?: number;
+        temperature?: number;
+      } = {
+        model: modelConfig.modelName || 'ernie-4.0-turbo-8k',
+        messages: processedMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
+      };
+
+      if (modelConfig.maxTokens) {
+        requestBody.max_output_tokens = modelConfig.maxTokens;
       }
-      
+      if (modelConfig.temperature !== undefined) {
+        requestBody.temperature = modelConfig.temperature;
+      }
+
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${modelConfig.apiKey}`,
-        ...modelConfig.customRequestConfig?.headers
+        'Authorization': `Bearer ${modelConfig.apiKey}`
       };
 
       // 替换API Key
@@ -557,98 +542,158 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
     // ---- 根据模型类型构建请求体 ----
     let requestBody: any;
 
-    // 检查是否使用自定义请求配置
-    if (modelConfig.customRequestConfig?.enabled && modelConfig.customRequestConfig.requestBodyTemplate) {
-        try {
-          requestBody = buildCustomRequestBody(
-            modelConfig.customRequestConfig.requestBodyTemplate,
-            processedMessages,
-            modelConfig,
-            options.apiKey
-          );
-        } catch (error) {
-          onError(new Error(`自定义请求体构建失败: ${error}`));
-          return;
-        }
-      } else {
-        // 使用默认请求体构建逻辑
-        if (modelConfig.modelType === 'local') {
-          // Ollama格式 - 兼容更多模型的基础格式
-          requestBody = {
-            model: modelConfig.modelName || 'llama2',
-            messages: processedMessages,
-            stream: true
-          };
-        
-        // 只添加有效的参数，避免某些模型不支持的参数
+    // 使用默认请求体构建逻辑
+    if (modelConfig.modelType === 'local') {
+      // Ollama格式 - 兼容更多模型的基础格式
+      requestBody = {
+        model: modelConfig.modelName || 'llama2',
+        messages: processedMessages,
+        stream: true
+      };
+
+      // 只添加有效的参数，避免某些模型不支持的参数
+      if (modelConfig.temperature !== undefined && modelConfig.temperature !== null) {
+        requestBody.temperature = modelConfig.temperature;
+      }
+      if (modelConfig.maxTokens && modelConfig.maxTokens > 0) {
+        requestBody.num_predict = modelConfig.maxTokens;
+      }
+
+      // 特殊处理：deepseek-r1模型可能需要不同的参数格式
+      if (modelConfig.modelName?.includes('deepseek-r1')) {
+        // 移除可能导致问题的参数
+        delete requestBody.temperature;
+        delete requestBody.num_predict;
+
+        // 使用options格式
+        requestBody.options = {};
         if (modelConfig.temperature !== undefined && modelConfig.temperature !== null) {
-          requestBody.temperature = modelConfig.temperature;
+          requestBody.options.temperature = modelConfig.temperature;
         }
         if (modelConfig.maxTokens && modelConfig.maxTokens > 0) {
-          requestBody.num_predict = modelConfig.maxTokens;
-        }
-        
-        // 特殊处理：deepseek-r1模型可能需要不同的参数格式
-        if (modelConfig.modelName?.includes('deepseek-r1')) {
-          // 移除可能导致问题的参数
-          delete requestBody.temperature;
-          delete requestBody.num_predict;
-          
-          // 使用options格式
-          requestBody.options = {};
-          if (modelConfig.temperature !== undefined && modelConfig.temperature !== null) {
-            requestBody.options.temperature = modelConfig.temperature;
-          }
-          if (modelConfig.maxTokens && modelConfig.maxTokens > 0) {
-            requestBody.options.num_predict = modelConfig.maxTokens;
-          }
-        }
-      } else if (modelConfig.modelType === 'baidu') {
-        // 百度文心千帆格式（兼容OpenAI）
-        requestBody = {
-          model: modelConfig.modelName || 'ernie-4.0-turbo-8k',
-          messages: processedMessages.map(msg => {
-            // 百度千帆API需要特殊的多模态格式
-            const processedContent = processMultimodalMessage(msg);
-            return {
-              role: msg.role,
-              content: processedContent
-            };
-          }),
-          stream: true
-        };
-        if (modelConfig.maxTokens) {
-          requestBody.max_output_tokens = modelConfig.maxTokens;
-        }
-        if (modelConfig.temperature !== undefined) {
-          requestBody.temperature = modelConfig.temperature;
-        }
-      } else {
-        // 其他模型：OpenAI、Claude、Gemini
-        requestBody = {
-          messages: messages.map(msg => ({
-            role: msg.role,
-            content: msg.content
-          })),
-          stream: true
-        };
-
-        if (modelConfig.modelType === 'openai') {
-          requestBody.model = modelConfig.modelName || 'gpt-4';
-          requestBody.max_tokens = modelConfig.maxTokens;
-          requestBody.temperature = modelConfig.temperature;
-        } else if (modelConfig.modelType === 'claude') {
-          requestBody.max_tokens = modelConfig.maxTokens;
-          requestBody.temperature = modelConfig.temperature;
-        } else if (modelConfig.modelType === 'gemini') {
-          requestBody.maxOutputTokens = modelConfig.maxTokens;
-          requestBody.temperature = modelConfig.temperature;
-        } else {
-          requestBody.model = modelConfig.modelName || 'gpt-4';
-          requestBody.max_tokens = modelConfig.maxTokens;
-          requestBody.temperature = modelConfig.temperature;
+          requestBody.options.num_predict = modelConfig.maxTokens;
         }
       }
+    } else if (modelConfig.modelType === 'baidu') {
+      // 百度文心千帆格式（兼容OpenAI）
+      requestBody = {
+        model: modelConfig.modelName || 'ernie-4.0-turbo-8k',
+        messages: processedMessages.map(msg => {
+          // 使用通用的多模态消息处理函数
+          const content = processMultimodalMessage(msg);
+          
+          return {
+            role: msg.role,
+            content: content
+          };
+        }),
+        stream: true
+      };
+      if (modelConfig.maxTokens) {
+        requestBody.max_output_tokens = modelConfig.maxTokens;
+      }
+      if (modelConfig.temperature !== undefined) {
+        requestBody.temperature = modelConfig.temperature;
+      }
+    } else if (modelConfig.modelType === 'anthropic' || modelConfig.modelType === 'claude') {
+      // Anthropic Claude 格式
+      requestBody = {
+        model: modelConfig.modelName || 'claude-3-sonnet-20240229',
+        messages: processedMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        max_tokens: modelConfig.maxTokens || 4096,
+        stream: true
+      };
+      if (modelConfig.temperature !== undefined) {
+        requestBody.temperature = modelConfig.temperature;
+      }
+    } else if (modelConfig.modelType === 'gemini') {
+      // Google Gemini 格式
+      requestBody = {
+        contents: processedMessages.map(msg => ({
+          role: msg.role,
+          parts: [{ text: msg.content }]
+        })),
+        generationConfig: {
+          maxOutputTokens: modelConfig.maxTokens || 2000,
+          temperature: modelConfig.temperature ?? 0.7
+        },
+        stream: true
+      };
+    } else if (modelConfig.modelType === 'cohere') {
+      // Cohere 格式
+      requestBody = {
+        model: modelConfig.modelName || 'command-r-plus',
+        messages: processedMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        max_tokens: modelConfig.maxTokens || 2000,
+        temperature: modelConfig.temperature ?? 0.7,
+        stream: true
+      };
+    } else if (modelConfig.modelType === 'deepseek') {
+      // DeepSeek 格式
+      requestBody = {
+        model: modelConfig.modelName || 'deepseek-coder',
+        messages: processedMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        max_tokens: modelConfig.maxTokens || 2000,
+        temperature: modelConfig.temperature ?? 0.7,
+        stream: true
+      };
+    } else if (modelConfig.modelType === 'microsoft') {
+      // Microsoft Phi 格式
+      requestBody = {
+        model: modelConfig.modelName || 'phi-3-mini-4k',
+        messages: processedMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        max_tokens: modelConfig.maxTokens || 2000,
+        temperature: modelConfig.temperature ?? 0.7,
+        stream: true
+      };
+    } else if (modelConfig.modelType === 'perplexity') {
+      // Perplexity 格式
+      requestBody = {
+        model: modelConfig.modelName || 'llama-3-sonar-large-32k-chat',
+        messages: processedMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        max_tokens: modelConfig.maxTokens || 2000,
+        temperature: modelConfig.temperature ?? 0.7,
+        stream: true
+      };
+    } else if (modelConfig.modelType === 'openai') {
+      // OpenAI 标准格式
+      requestBody = {
+        model: modelConfig.modelName || 'gpt-4',
+        messages: processedMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        max_tokens: modelConfig.maxTokens,
+        temperature: modelConfig.temperature,
+        stream: true
+      };
+    } else {
+      // 其他模型默认使用OpenAI兼容格式
+      requestBody = {
+        model: modelConfig.modelName || 'gpt-4',
+        messages: processedMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        max_tokens: modelConfig.maxTokens,
+        temperature: modelConfig.temperature,
+        stream: true
+      };
     }
 
     // ---- 构建请求头 ----
@@ -656,74 +701,95 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       'Content-Type': 'application/json'
     };
 
-    // 检查是否使用自定义请求头
-    if (modelConfig.customRequestConfig?.enabled && modelConfig.customRequestConfig.headers) {
-      // 合并自定义请求头
-      Object.assign(headers, modelConfig.customRequestConfig.headers);
-      
-      // 替换API Key变量
-      Object.keys(headers).forEach(key => {
-        if (typeof headers[key] === 'string' && headers[key].includes('{{apiKey}}')) {
-          headers[key] = headers[key].replace('{{apiKey}}', apiKey || '');
-        }
-      });
-    } else if (modelConfig.customRequestConfig?.enabled && !modelConfig.customRequestConfig.headers) {
-      // 如果启用了自定义请求配置但没有自定义请求头，使用默认逻辑
-      if (apiKey) {
+    // 使用默认请求头逻辑
+    if (apiKey) {
+      if (modelConfig.modelType === 'claude' || modelConfig.modelType === 'anthropic' || modelConfig.modelType === 'anthropic-vertex') {
+        // Anthropic Claude认证 - 特殊处理
+        headers['x-api-key'] = apiKey;
+        headers['anthropic-version'] = '2023-06-01';
+      } else if (modelConfig.modelType === 'baidu') {
+        // 百度文心千帆API认证
         headers['Authorization'] = `Bearer ${apiKey}`;
-      }
-    } else {
-      // 使用默认请求头逻辑
-      if (apiKey) {
-        if (modelConfig.modelType === 'openai') {
-          headers['Authorization'] = `Bearer ${apiKey}`;
-        } else if (modelConfig.modelType === 'claude') {
-          headers['x-api-key'] = apiKey;
-          headers['anthropic-version'] = '2023-06-01';
-        } else if (modelConfig.modelType === 'baidu') {
-          // 百度千帆API使用特殊的认证格式
-          headers['Authorization'] = `Bearer ${apiKey}`;
-          headers['Content-Type'] = 'application/json';
-        } else {
-          headers['Authorization'] = `Bearer ${apiKey}`;
-        }
+      } else if (modelConfig.modelType === 'openai') {
+        // OpenAI认证
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      } else if (modelConfig.modelType === 'local') {
+        // 本地模型认证
+        headers['Authorization'] = `Bearer ${apiKey || 'ollama'}`;
+      } else if (modelConfig.modelType === 'gemini') {
+        // Google Gemini认证
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      } else if (modelConfig.modelType === 'cohere') {
+        // Cohere认证
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      } else if (modelConfig.modelType === 'deepseek') {
+        // DeepSeek认证
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      } else if (modelConfig.modelType === 'microsoft') {
+        // Microsoft认证
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      } else if (modelConfig.modelType === 'perplexity') {
+        // Perplexity认证
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      } else {
+        // 默认认证头
+        headers['Authorization'] = `Bearer ${apiKey}`;
       }
     }
 
     // ---- 调试信息已移除 ----
 
-    // ---- 发送请求 ----
-    await ky.post(options.endpoint, {
-      json: requestBody,
-      headers,
-      signal,
-      hooks: {
-        afterResponse: [sseHook]
-      }
-    });
-
-  } catch (error) {
-    if (!signal?.aborted) {
-      console.error('发送请求出错:', { 
-        error: error instanceof Error ? error.message : String(error),
-        modelId: modelConfig.id,
-        apiUrl: modelConfig.apiUrl,
-        errorType: error instanceof TypeError ? 'TypeError' : 
-                  error instanceof SyntaxError ? 'SyntaxError' : 
-                  'UnknownError' // 使用UnknownError代替TimeoutError
-      });
-      let message = '发送消息失败';
-      if (error instanceof Error) {
-        message = error.message;
-        
-        // 特殊处理Ollama错误 - 移除调试信息
-        if (modelConfig.modelType === 'local') {
-          // 错误信息保留，但移除console.error
+    try {
+      // ---- 发送请求 ----
+      // 为百度千帆API增加超时设置和重试机制
+      const timeout = modelConfig.modelType === 'baidu' ? 120000 : undefined; // 百度模型增加到120秒超时
+      
+      // 添加重试配置
+      await ky.post(modelConfig.apiUrl, {
+        json: requestBody,
+        headers,
+        signal,
+        timeout,
+        retry: {
+          limit: modelConfig.modelType === 'baidu' ? 2 : 0, // 百度模型增加2次重试
+          statusCodes: [408, 429, 500, 502, 503, 504],
+          methods: ['post']
+        },
+        hooks: {
+          afterResponse: [sseHook]
         }
+      });
+
+    } catch (error) {
+      if (!signal?.aborted) {
+        console.error('发送请求出错:', {
+          error: error instanceof Error ? error.message : String(error),
+          modelId: modelConfig.id,
+          apiUrl: modelConfig.apiUrl,
+          errorType: error instanceof TypeError ? 'TypeError' :
+            error instanceof SyntaxError ? 'SyntaxError' :
+              'UnknownError' // 使用UnknownError代替TimeoutError
+        });
+        let message = '发送消息失败';
+        if (error instanceof Error) {
+          message = error.message;
+
+          // 特殊处理Ollama错误
+          if (modelConfig.modelType === 'local') {
+            // 可以在这里添加Ollama特定的错误处理逻辑
+          }
+        }
+        onError(new Error(message));
       }
-      onError(new Error(message));
+    } finally {
+      console.log('聊天请求处理完成', { modelId: modelConfig.id });
     }
+  } catch (error) {
+    console.error('外层错误捕获:', error);
+    onError(error instanceof Error ? error : new Error('未知错误'));
   } finally {
-    console.log('聊天请求处理完成', { modelId: modelConfig.id });
+    // 清理资源
+    console.log('sendChatStream 函数执行完成');
   }
-};
+}
+
