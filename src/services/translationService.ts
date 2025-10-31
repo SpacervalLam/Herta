@@ -132,7 +132,7 @@ export const translateText = async (
       endpoint: request.modelConfig.apiUrl,
       messages,
       modelConfig: request.modelConfig,
-      apiKey: request.modelConfig.apiKey, // 添加apiKey参数，确保认证头正确设置
+      apiKey: request.modelConfig.apiKey, 
       signal: request.signal,
       onUpdate: (content: string) => {
         translatedText = content;

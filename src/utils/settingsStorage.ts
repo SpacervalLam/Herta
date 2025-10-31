@@ -15,40 +15,25 @@ const defaultSettings: UserSettings = {
   backgroundOpacity: 1, // 默认完全不透明
 };
 
-export const settingsStorage = {
-  // 获取用户设置
-  getSettings(): UserSettings {
-    try {
-      const data = localStorage.getItem(SETTINGS_KEY);
-      if (data) {
-        const settings = JSON.parse(data);
-        return { ...defaultSettings, ...settings };
-      }
-    } catch (error) {
-      console.error('读取用户设置失败:', error);
+// 获取设置
+export const getSettings = (): UserSettings => {
+  try {
+    const saved = localStorage.getItem(SETTINGS_KEY);
+    if (saved) {
+      // 合并默认设置和保存的设置
+      return { ...defaultSettings, ...JSON.parse(saved) };
     }
-    return defaultSettings;
-  },
+  } catch (error) {
+    console.error('读取用户设置失败:', error);
+  }
+  return { ...defaultSettings };
+};
 
-  // 保存用户设置
-  saveSettings(settings: UserSettings): void {
-    try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-      // 触发自定义事件，通知其他组件设置已更改
-      window.dispatchEvent(new Event('settings-changed'));
-    } catch (error) {
-      console.error('保存用户设置失败:', error);
-    }
-  },
-
-  // 更新部分设置
-  updateSettings(partial: Partial<UserSettings>): void {
-    const current = this.getSettings();
-    this.saveSettings({ ...current, ...partial });
-  },
-
-  // 重置为默认设置
-  resetSettings(): void {
-    this.saveSettings(defaultSettings);
-  },
+// 保存设置
+export const saveSettings = (settings: UserSettings) => {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch (error) {
+    console.error('保存用户设置失败:', error);
+  }
 };

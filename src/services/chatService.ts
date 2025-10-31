@@ -506,7 +506,19 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       }
 
       console.log('发送API请求', { apiUrl: modelConfig.apiUrl, requestSize: JSON.stringify(requestBody).length });
-      const response = await ky.post(modelConfig.apiUrl, {
+      
+      // 确定请求URL - 支持代理配置
+      let requestUrl = modelConfig.apiUrl;
+      // 对于需要代理的外部API，使用代理服务器
+      if (modelConfig.proxyUrl && 
+          (modelConfig.apiUrl.includes('api.openai.com') || 
+           modelConfig.apiUrl.includes('anthropic.com') || 
+           modelConfig.apiUrl.includes('googleapis.com'))) {
+        console.log('使用代理服务器发送非流式请求');
+        requestUrl = modelConfig.proxyUrl;
+      }
+      
+      const response = await ky.post(requestUrl, {
         json: requestBody,
         headers,
         signal
@@ -773,8 +785,19 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
       // 为百度千帆API增加超时设置和重试机制
       const timeout = modelConfig.modelType === 'baidu' ? 120000 : undefined; // 百度模型增加到120秒超时
       
+      // 确定请求URL - 支持代理配置
+      let requestUrl = modelConfig.apiUrl;
+      // 对于需要代理的外部API，使用代理服务器
+      if (modelConfig.proxyUrl && 
+          (modelConfig.apiUrl.includes('api.openai.com') || 
+           modelConfig.apiUrl.includes('anthropic.com') || 
+           modelConfig.apiUrl.includes('googleapis.com'))) {
+        console.log('使用代理服务器发送请求');
+        requestUrl = modelConfig.proxyUrl;
+      }
+      
       // 添加重试配置
-      await ky.post(modelConfig.apiUrl, {
+      await ky.post(requestUrl, {
         json: requestBody,
         headers,
         signal,
@@ -791,24 +814,23 @@ export const sendChatStream = async (options: ChatStreamOptions): Promise<void> 
 
     } catch (error) {
       if (!signal?.aborted) {
-        console.error('发送请求出错:', {
-          error: error instanceof Error ? error.message : String(error),
+        // 只记录错误详情到控制台，不传递原始错误消息到用户界面
+        const errorDetails = {
           modelId: modelConfig.id,
           apiUrl: modelConfig.apiUrl,
           errorType: error instanceof TypeError ? 'TypeError' :
             error instanceof SyntaxError ? 'SyntaxError' :
-              'UnknownError' // 使用UnknownError代替TimeoutError
-        });
-        let message = '发送消息失败';
-        if (error instanceof Error) {
-          message = error.message;
-
-          // 特殊处理Ollama错误
-          if (modelConfig.modelType === 'local') {
-            // 可以在这里添加Ollama特定的错误处理逻辑
-          }
+              'UnknownError'
+        };
+        console.error('发送请求出错:', errorDetails);
+        
+        const is401Error = error instanceof Error && (error.message.includes('401') || error.message.toLowerCase().includes('unauthorized'));
+        
+        if (is401Error) {
+          onError(new Error('API密钥无效或已过期，请检查您的认证信息'));
+        } else {
+          onError(new Error('发送消息失败'));
         }
-        onError(new Error(message));
       }
     } finally {
       console.log('聊天请求处理完成', { modelId: modelConfig.id });

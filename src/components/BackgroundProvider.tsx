@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { settingsStorage } from '@/utils/settingsStorage';
+import { getSettings } from '@/utils/settingsStorage';
 
 interface BackgroundProviderProps {
   children: React.ReactNode;
@@ -8,7 +8,7 @@ interface BackgroundProviderProps {
 export const BackgroundProvider: React.FC<BackgroundProviderProps> = ({ children }) => {
   // 应用背景设置的函数
   const applyBackgroundSettings = () => {
-    const settings = settingsStorage.getSettings();
+    const settings = getSettings();
 
     // 应用背景图片和透明度到body或根元素
     const rootElement = document.getElementById('root');

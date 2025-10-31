@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { sendChatStream } from '@/services/chatService';
+
 import { getActiveModelWithApiKey } from '@/utils/modelStorage';
 import type { Conversation, ChatMessage } from '@/types/chat';
 import type { ModelConfig } from '@/types/model';
@@ -325,6 +326,7 @@ export const useChat = () => {
         modelConfig: activeModel,
         messages: [{ id: 'temp', role: 'user', content: titlePrompt, timestamp: Date.now() }],
         userId: user?.id,
+  
         onUpdate: (content: string) => {
           // 累积流式内容
           generatedTitle = content.trim();
@@ -572,6 +574,7 @@ export const useChat = () => {
         modelConfig: activeModel,
         messages: [...(conversation?.messages || []), userMessage],
         userId: user?.id,
+  
         onUpdate: (content: string) => {
           // 保存最新的AI回复内容到ref
           assistantContentRef.current = content;
@@ -769,6 +772,7 @@ export const useChat = () => {
         modelConfig: activeModel,
         messages: contextMessages,
         userId: user?.id,
+  
         onUpdate: (content: string) => {
           // 更新相同ID的消息内容
           setConversations(prev =>
@@ -1033,6 +1037,7 @@ export const useChat = () => {
         modelConfig: activeModel,
         messages: [...messagesBefore, editedMessage],
         userId: user?.id,
+  
         onUpdate: (content: string) => {
           setConversations(prev =>
             prev.map(c =>

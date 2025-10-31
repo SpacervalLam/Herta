@@ -146,6 +146,7 @@
     "maxTokensPlaceholder": "2000",
     "temperature": "温度 (0-2)",
     "temperaturePlaceholder": "0.7",
+    "temperatureHelp": "控制输出的随机性，值越高越随机。",
     "enabled": "启用此模型",
     "saveConfig": "保存配置",
     "setActive": "设为当前模型",
@@ -168,6 +169,8 @@
     "advancedConfig": "高级配置",
     "supportsMultimodal": "支持多模态输入",
     "supportsMultimodalHelp": "启用后支持图片、音频、视频等多媒体输入",
+    "proxyUrl": "代理服务器URL",
+    "proxyUrlHelp": "配置特定模型的代理服务器（可选）",
     "customRequestBody": "自定义请求体",
     "customRequestBodyHelp": "启用自定义请求体配置",
     "requestBodyTemplate": "请求体模板 (JSON)",
@@ -206,6 +209,8 @@
     "shiftEnterNewline": "Shift + Enter 换行",
     "selectModelToEdit": "选择一个模型进行编辑",
     "orClickAddNewToAddNewModel": "或点击\"新增\"添加新模型",
+
+
     "background": "背景设置",
     "backgroundImage": "背景图片",
     "backgroundPreview": "背景预览",

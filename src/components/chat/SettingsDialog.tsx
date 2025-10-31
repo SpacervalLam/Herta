@@ -11,8 +11,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useTheme } from 'next-themes';
-import { settingsStorage } from '@/utils/settingsStorage';
-// Input组件已移除，不再需要导入
+import { getSettings, saveSettings } from '@/utils/settingsStorage';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -37,7 +36,7 @@ const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
 
   useEffect(() => {
     // 加载所有设置
-    const userSettings = settingsStorage.getSettings();
+    const userSettings = getSettings();
     setSendKey(userSettings.sendMessageKey);
     setBackgroundImage(userSettings.backgroundImage || '');
     setBackgroundOpacity(userSettings.backgroundOpacity);
@@ -47,7 +46,8 @@ const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
   const handleSendKeyChange = (value: string) => {
     const newKey = value as 'enter' | 'ctrl-enter';
     setSendKey(newKey);
-    settingsStorage.updateSettings({ sendMessageKey: newKey });
+    const currentSettings = getSettings();
+    saveSettings({ ...currentSettings, sendMessageKey: newKey });
   };
   
   // 处理图片上传
@@ -59,7 +59,8 @@ const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
         const base64String = reader.result as string;
         setBackgroundImage(base64String);
         setPreviewImage(base64String);
-        settingsStorage.updateSettings({ backgroundImage: base64String });
+        const currentSettings = getSettings();
+    saveSettings({ ...currentSettings, backgroundImage: base64String });
       };
       reader.readAsDataURL(file);
     }
@@ -70,14 +71,20 @@ const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
   const handleRemoveBackground = () => {
     setBackgroundImage('');
     setPreviewImage('');
-    settingsStorage.updateSettings({ backgroundImage: undefined });
+    const currentSettings = getSettings();
+    const updatedSettings = { ...currentSettings };
+    delete updatedSettings.backgroundImage;
+    saveSettings(updatedSettings);
   };
   
   // 处理透明度变化
   const handleOpacityChange = (value: number) => {
     setBackgroundOpacity(value);
-    settingsStorage.updateSettings({ backgroundOpacity: value });
+    const currentSettings = getSettings();
+    saveSettings({ ...currentSettings, backgroundOpacity: value });
   };
+
+
   
   const handleLanguageChange = (language: string) => {
     setCurrentLanguage(language);
@@ -87,7 +94,18 @@ const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-background/90 backdrop-blur-md">
+      <DialogContent className="sm:max-w-[500px] bg-background/90 backdrop-blur-md max-h-[80vh]">
+        <div 
+          className="max-h-[calc(80vh-2rem)] overflow-y-auto" 
+          style={{ 
+            scrollbarWidth: 'none', 
+            msOverflowStyle: 'none',
+            WebkitOverflowScrolling: 'touch'
+          }}
+          onWheel={(e) => {
+            // 确保弹窗内容区域能够响应滚轮事件
+          }}
+        >
         <DialogHeader>
           <DialogTitle>{t('settings.title')}</DialogTitle>
           <DialogDescription>
@@ -96,6 +114,7 @@ const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+
           {/* 语言设置 */}
           <div className="space-y-3">
             <Label className="text-base font-semibold flex items-center gap-2">
@@ -255,6 +274,7 @@ const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
               </div>
             </div>
           </div>
+        </div>
         </div>
       </DialogContent>
     </Dialog>

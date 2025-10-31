@@ -17,6 +17,7 @@ export interface ModelConfig {
   updatedAt: number;
   // 高级配置
   supportsMultimodal?: boolean; // 是否支持多模态输入
+  proxyUrl?: string; // 模型特定的代理服务器URL
 }
 
 export interface ModelPreset {

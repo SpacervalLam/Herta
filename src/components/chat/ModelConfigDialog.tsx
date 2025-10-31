@@ -317,7 +317,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
               </div>
             </div>
 
-            <ScrollArea className="flex-1 p-3">
+            <ScrollArea className="flex-1 p-3 h-[calc(100%-80px)]" style={{ overflowY: 'auto' }}>
               {models.length ? (
                 <div className="space-y-2">
                   {models.map((model: ModelConfig) => {
@@ -461,28 +461,7 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
                     />
                   </div>
 
-                  <div className="grid grid-cols-3 gap-6">
-                    <div className="space-y-2">
-                      <Label>{t('model.maxTokens')}</Label>
-                      <Input
-                        type="number"
-                        value={editingModel.maxTokens || ''}
-                        onChange={e => setEditingModel({ ...editingModel, maxTokens: parseInt(e.target.value) })}
-                        placeholder="2000"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{t('model.temperature')}</Label>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="2"
-                        value={editingModel.temperature || ''}
-                        onChange={e => setEditingModel({ ...editingModel, temperature: parseFloat(e.target.value) })}
-                        placeholder="0.7"
-                      />
-                    </div>
+                  <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label>{t('model.enabled')}</Label>
                       <div className="flex items-center h-10 space-x-2">
@@ -516,6 +495,42 @@ export default function ModelConfigDialog({ onModelChange }: ModelConfigDialogPr
 
                     {showAdvancedConfig && (
                       <div className="mt-4 space-y-4">
+                        {/* 代理URL配置 */}
+                        <div className="space-y-2">
+                          <Label>{t('model.proxyUrl')}</Label>
+                          <Input
+                              value={editingModel.proxyUrl || ''}
+                              onChange={e => setEditingModel({ ...editingModel, proxyUrl: e.target.value })}
+                            />
+                          <p className="text-xs text-muted-foreground">{t('model.proxyUrlHelp')}</p>
+                        </div>
+
+                        {/* 温度配置 */}
+                        <div className="space-y-2">
+                          <Label>{t('model.temperature')}</Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="2"
+                            value={editingModel.temperature || ''}
+                            onChange={e => setEditingModel({ ...editingModel, temperature: parseFloat(e.target.value) })}
+                            placeholder="0.7"
+                          />
+                          <p className="text-xs text-muted-foreground">{t('model.temperatureHelp') || '控制输出的随机性，值越高越随机'}</p>
+                        </div>
+
+                        {/* 最大Token数配置 */}
+                        <div className="space-y-2">
+                          <Label>{t('model.maxTokens')}</Label>
+                          <Input
+                            type="number"
+                            value={editingModel.maxTokens || ''}
+                            onChange={e => setEditingModel({ ...editingModel, maxTokens: parseInt(e.target.value) })}
+                            placeholder="2000"
+                          />
+                        </div>
+
                         {/* 多模态支持 */}
                         <div className="space-y-2">
                           <Label>{t('model.supportsMultimodal')}</Label>

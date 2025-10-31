@@ -3,7 +3,7 @@ import { Send, Square, Plus, ImageIcon, FileTextIcon, MicIcon, X } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { settingsStorage } from '@/utils/settingsStorage';
+import { getSettings } from '@/utils/settingsStorage';
 import { MediaAttachment } from '@/types/chat';
 import { getActiveModel } from '@/utils/modelStorage';
 import { useTranslation } from 'react-i18next';
@@ -79,7 +79,7 @@ const ChatInput = ({ onSend, onStop, isLoading, disabled, textareaRef: externalT
   useEffect(() => {
     // 加载用户设置
     const loadSettings = () => {
-      const settings = settingsStorage.getSettings();
+      const settings = getSettings();
       setSendKey(settings.sendMessageKey || 'ctrl-enter');
     };
 
