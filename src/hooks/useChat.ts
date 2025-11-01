@@ -534,7 +534,7 @@ export const useChat = () => {
           }
           
           // 保存消息
-          // 添加空值检查，确保安全访问属性
+          // 空值检查，确保安全访问属性
           if (!conversation || !activeModel) {
             console.error('无法保存消息：缺少必要的对话或模型信息');
             return;

@@ -84,8 +84,11 @@ const TranslationModal: React.FC<TranslationModalProps> = ({ open, onOpenChange 
         setActiveModelName('未知模型');
       }
     };
-    loadActiveModel();
-  }, [user?.id]);
+    // 每次弹窗打开时都刷新模型名称
+    if (open) {
+      loadActiveModel();
+    }
+  }, [user?.id, open]);
   // Removed unused textareaRef
   
   // History item functionality can be implemented here if needed in the future
