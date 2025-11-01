@@ -19,6 +19,7 @@ const ChatPage = () => {
     currentConversation,
     currentConversationId,
     isLoading,
+    isLoadingConversations,
     setCurrentConversationId,
     createNewConversation,
     deleteConversation,
@@ -92,6 +93,7 @@ const ChatPage = () => {
         <ChatSidebar
           conversations={conversations}
           currentConversationId={currentConversationId}
+          isLoadingConversations={isLoadingConversations}
           onSelectConversation={setCurrentConversationId}
           onNewConversation={createNewConversation}
           onDeleteConversation={deleteConversation}

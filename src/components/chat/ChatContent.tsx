@@ -127,6 +127,18 @@ const ChatContent = ({
     );
   }
 
+  // messages === undefined 表示正在从数据库加载消息
+  if (conversation.messages === undefined) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center">
+          <div className="h-8 w-8 animate-spin border-4 border-t-transparent rounded-full border-muted-foreground mb-4"></div>
+          <div className="text-sm text-muted-foreground">{t('loading') || '加载中...'}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* 编辑标题的临时覆盖层 */}

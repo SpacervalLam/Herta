@@ -31,6 +31,7 @@ interface ChatSidebarProps {
   isSelectionMode?: boolean;
   setIsSelectionMode?: (mode: boolean) => void;
   setIsClickOutsideDetectionEnabled?: (enabled: boolean) => void;
+  isLoadingConversations?: boolean;
 }
 
 const ChatSidebar = ({
@@ -46,7 +47,8 @@ const ChatSidebar = ({
     onToggleCollapse,
     isSelectionMode: propIsSelectionMode,
     setIsSelectionMode: propSetIsSelectionMode,
-    setIsClickOutsideDetectionEnabled
+    setIsClickOutsideDetectionEnabled,
+    isLoadingConversations = false
   }: ChatSidebarProps) => {
     const [featuresExpanded, setFeaturesExpanded] = useState(false);
     const { t } = useTranslation();
@@ -206,6 +208,13 @@ const ChatSidebar = ({
       ) : (
         <>
           <div className="p-4 border-b space-y-2 shrink-0">
+            {/* 会话列表加载指示器 */}
+            {isLoadingConversations && (
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 animate-spin border-2 border-t-transparent rounded-full border-muted-foreground"></div>
+                <div className="text-sm text-muted-foreground">加载中...</div>
+              </div>
+            )}
                 <div className="flex justify-between items-center mb-2">
                   <h2 className="font-semibold text-lg">Herta</h2>
                   <Button
